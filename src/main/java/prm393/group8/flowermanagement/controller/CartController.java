@@ -5,6 +5,7 @@ import prm393.group8.flowermanagement.entity.Order;
 import prm393.group8.flowermanagement.entity.OrderDetail;
 import prm393.group8.flowermanagement.entity.Product;
 import prm393.group8.flowermanagement.entity.User;
+import prm393.group8.flowermanagement.service.CartService;
 import prm393.group8.flowermanagement.service.OrderDetailService;
 import prm393.group8.flowermanagement.service.OrderService;
 import prm393.group8.flowermanagement.service.ProductService;
@@ -12,7 +13,6 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,18 +25,27 @@ public class CartController {
     private final ProductService productService;
     private final OrderService orderService;
     private final OrderDetailService orderDetailService;
+    private final CartService cartService;
 
-    public CartController(ProductService productService, OrderService orderService, OrderDetailService orderDetailService) {
+    public CartController(ProductService productService,
+                          OrderService orderService,
+                          OrderDetailService orderDetailService,
+                          CartService cartService) {
         this.productService = productService;
         this.orderService = orderService;
         this.orderDetailService = orderDetailService;
+        this.cartService = cartService;
     }
 
     // 1. [GET] /cart - Xem giỏ hàng
     @GetMapping
     public ResponseEntity<?> viewCart(HttpSession session) {
         User account = (User) session.getAttribute("account");
-        List<CartItem> cart = getCart(session);
+        if (account == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Not logged in", "redirect", "/login"));
+        }
+
+        List<CartItem> cart = cartService.getCartByUser(account);
 
         double total = cart.stream()
                 .mapToDouble(CartItem::getSubtotal)
@@ -70,6 +79,11 @@ public class CartController {
                                        @RequestParam(value = "quantity", defaultValue = "1") int quantityParam,
                                        @RequestBody(required = false) Map<String, Object> body,
                                        HttpSession session) {
+        User account = (User) session.getAttribute("account");
+        if (account == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Not logged in", "redirect", "/login"));
+        }
+
         Integer productId = productIdParam;
         int quantity = quantityParam;
 
@@ -97,39 +111,29 @@ public class CartController {
             return ResponseEntity.badRequest().body(Map.of("error", "Số lượng phải lớn hơn 0!"));
         }
 
-        List<CartItem> cart = getCart(session);
-
         // Kiểm tra xem sản phẩm đã có trong giỏ chưa
+        List<CartItem> cart = cartService.getCartByUser(account);
         CartItem existingItem = cart.stream()
                 .filter(item -> item.getProduct().getProductId() == product.getProductId())
                 .findFirst()
                 .orElse(null);
 
+        int newQuantity = quantity;
         if (existingItem != null) {
-            // Đã có → Tăng số lượng
-            int newQuantity = existingItem.getQuantity() + quantity;
-
-            // Kiểm tra không vượt quá tồn kho
-            if (newQuantity > product.getStock()) {
-                return ResponseEntity.badRequest().body(Map.of("error",
-                        "Không thể thêm! Sản phẩm '" + product.getProductName() +
-                                "' chỉ còn " + product.getStock() + " sản phẩm trong kho."));
-            }
-
-            existingItem.setQuantity(newQuantity);
-        } else {
-            // Chưa có → Kiểm tra số lượng trước khi thêm
-            if (quantity > product.getStock()) {
-                return ResponseEntity.badRequest().body(Map.of("error",
-                        "Không thể thêm! Sản phẩm '" + product.getProductName() +
-                                "' chỉ còn " + product.getStock() + " sản phẩm trong kho."));
-            }
-
-            cart.add(new CartItem(product, quantity));
+            newQuantity += existingItem.getQuantity();
         }
 
-        session.setAttribute("cart", cart);
-        return ResponseEntity.ok(Map.of("message", "Đã thêm sản phẩm vào giỏ hàng!", "cart", cart));
+        // Kiểm tra không vượt quá tồn kho
+        if (newQuantity > product.getStock()) {
+            return ResponseEntity.badRequest().body(Map.of("error",
+                    "Không thể thêm! Sản phẩm '" + product.getProductName() +
+                            "' chỉ còn " + product.getStock() + " sản phẩm trong kho."));
+        }
+
+        cartService.addToCart(account, product, quantity);
+
+        List<CartItem> updatedCart = cartService.getCartByUser(account);
+        return ResponseEntity.ok(Map.of("message", "Đã thêm sản phẩm vào giỏ hàng!", "cart", updatedCart));
     }
 
     // 3. [POST] /cart/update - Cập nhật số lượng
@@ -138,6 +142,11 @@ public class CartController {
                                         @RequestParam(value = "quantity", required = false) Integer quantityParam,
                                         @RequestBody(required = false) Map<String, Object> body,
                                         HttpSession session) {
+        User account = (User) session.getAttribute("account");
+        if (account == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Not logged in", "redirect", "/login"));
+        }
+
         Integer productId = productIdParam;
         Integer quantity = quantityParam;
 
@@ -154,8 +163,7 @@ public class CartController {
             return ResponseEntity.badRequest().body(Map.of("error", "productId and quantity are required"));
         }
 
-        List<CartItem> cart = getCart(session);
-
+        List<CartItem> cart = cartService.getCartByUser(account);
         final int targetProductId = productId;
         CartItem cartItem = cart.stream()
                 .filter(item -> item.getProduct().getProductId() == targetProductId)
@@ -177,13 +185,13 @@ public class CartController {
                                 "' chỉ còn " + product.getStock() + " sản phẩm trong kho. Không thể cập nhật!"));
             }
 
-            cartItem.setQuantity(quantity);
+            cartService.updateCart(account, product, quantity);
         } else {
             return ResponseEntity.badRequest().body(Map.of("error", "Sản phẩm không có trong giỏ hàng."));
         }
 
-        session.setAttribute("cart", cart);
-        return ResponseEntity.ok(Map.of("message", "Đã cập nhật số lượng!", "cart", cart));
+        List<CartItem> updatedCart = cartService.getCartByUser(account);
+        return ResponseEntity.ok(Map.of("message", "Đã cập nhật số lượng!", "cart", updatedCart));
     }
 
     // 4. [POST] /cart/remove - Xóa sản phẩm khỏi giỏ
@@ -191,6 +199,11 @@ public class CartController {
     public ResponseEntity<?> removeFromCart(@RequestParam(value = "productId", required = false) Integer productIdParam,
                                            @RequestBody(required = false) Map<String, Object> body,
                                            HttpSession session) {
+        User account = (User) session.getAttribute("account");
+        if (account == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Not logged in", "redirect", "/login"));
+        }
+
         Integer productId = productIdParam;
         if (body != null && body.containsKey("productId")) {
             productId = Integer.parseInt(body.get("productId").toString());
@@ -200,11 +213,15 @@ public class CartController {
             return ResponseEntity.badRequest().body(Map.of("error", "productId is required"));
         }
 
-        List<CartItem> cart = getCart(session);
-        final int targetProductId = productId;
-        cart.removeIf(item -> item.getProduct().getProductId() == targetProductId);
-        session.setAttribute("cart", cart);
-        return ResponseEntity.ok(Map.of("message", "Đã xóa sản phẩm khỏi giỏ hàng!", "cart", cart));
+        Product product = productService.getProductById(productId).orElse(null);
+        if (product == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Không tìm thấy sản phẩm"));
+        }
+
+        cartService.removeFromCart(account, product);
+
+        List<CartItem> updatedCart = cartService.getCartByUser(account);
+        return ResponseEntity.ok(Map.of("message", "Đã xóa sản phẩm khỏi giỏ hàng!", "cart", updatedCart));
     }
 
     // 5. [GET] /cart/checkout - Trang checkout
@@ -215,7 +232,7 @@ public class CartController {
             return ResponseEntity.status(401).body(Map.of("error", "Not logged in", "redirect", "/login"));
         }
 
-        List<CartItem> cart = getCart(session);
+        List<CartItem> cart = cartService.getCartByUser(account);
         if (cart.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Giỏ hàng trống", "redirect", "/cart"));
         }
@@ -250,7 +267,7 @@ public class CartController {
             paymentMethod = "COD"; // default
         }
 
-        List<CartItem> cart = getCart(session);
+        List<CartItem> cart = cartService.getCartByUser(account);
         if (cart.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Giỏ hàng trống", "redirect", "/cart"));
         }
@@ -280,8 +297,8 @@ public class CartController {
             orderDetailService.saveOrderDetail(orderDetail);
         }
 
-        // Xóa giỏ hàng khỏi session
-        session.removeAttribute("cart");
+        // Xóa giỏ hàng khỏi DB
+        cartService.clearCart(account);
 
         Map<String, Object> response = new HashMap<>();
         response.put("order", savedOrder);
@@ -299,18 +316,5 @@ public class CartController {
         }
 
         return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Helper method: Lấy giỏ hàng từ session
-     */
-    @SuppressWarnings("unchecked")
-    private List<CartItem> getCart(HttpSession session) {
-        List<CartItem> cart = (List<CartItem>) session.getAttribute("cart");
-        if (cart == null) {
-            cart = new ArrayList<>();
-            session.setAttribute("cart", cart);
-        }
-        return cart;
     }
 }

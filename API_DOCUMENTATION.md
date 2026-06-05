@@ -176,9 +176,9 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 
 ---
 
-### 2.4. Giỏ Hàng (Cart) - Lưu Session
+### 2.4. Giỏ Hàng (Cart) - Lưu Database
 
-*Lưu ý: Giỏ hàng được quản lý theo Session ở Backend, Frontend chỉ cần gọi API thích hợp.*
+*Lưu ý: Giỏ hàng được quản lý lưu trong cơ sở dữ liệu (`cart_items`) liên kết với tài khoản người dùng đang đăng nhập. Frontend bắt buộc phải gửi credentials/cookies (ví dụ trong axios: `{ withCredentials: true }`) để được xác thực. Nếu chưa đăng nhập, tất cả các API giỏ hàng bên dưới sẽ trả về lỗi `401 Unauthorized`.*
 
 #### 🟩 Xem giỏ hàng hiện tại
 - **Method**: `GET`
@@ -189,6 +189,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
     {
       "cart": [
         {
+          "cartItemId": 1,
           "product": { "productId": 1, "productName": "Hoa hồng đỏ Đà Lạt", "price": 15000.0, ... },
           "quantity": 10,
           "subtotal": 150000.0
@@ -198,6 +199,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
       "account": { ... }
     }
     ```
+  - `401 Unauthorized`: `{"error": "Not logged in", "redirect": "/login"}`
 
 #### 🟩 Thêm sản phẩm hoa vào giỏ
 - **Method**: `POST`
@@ -208,6 +210,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 - **Response**:
   - `200 OK`: `{"message": "Đã thêm sản phẩm vào giỏ hàng!", "cart": [...]}`
   - `400 Bad Request`: Hết hàng trong kho, số lượng <= 0, v.v.
+  - `401 Unauthorized`: `{"error": "Not logged in", "redirect": "/login"}`
 
 #### 🟩 Cập nhật số lượng sản phẩm trong giỏ
 - **Method**: `POST`
@@ -217,6 +220,8 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
   - `quantity`: Số lượng mới mong muốn.
 - **Response**:
   - `200 OK`: `{"message": "Đã cập nhật số lượng!", "cart": [...]}`
+  - `400 Bad Request`: Số lượng <= 0 hoặc vượt quá tồn kho, v.v.
+  - `401 Unauthorized`: `{"error": "Not logged in", "redirect": "/login"}`
 
 #### 🟩 Xóa sản phẩm khỏi giỏ hàng
 - **Method**: `POST`
@@ -225,13 +230,14 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
   - `productId`: ID sản phẩm cần xóa.
 - **Response**:
   - `200 OK`: `{"message": "Đã xóa sản phẩm khỏi giỏ hàng!", "cart": [...]}`
+  - `401 Unauthorized`: `{"error": "Not logged in", "redirect": "/login"}`
 
 #### 🟩 Thông tin trang Thanh toán (Checkout Summary)
 - **Method**: `GET`
 - **URL**: `/cart/checkout`
 - **Response**:
   - `200 OK`: Trả về `cart`, `total` và `account` (thông tin người giao hàng mặc định).
-  - `401 Unauthorized`: Chưa đăng nhập.
+  - `401 Unauthorized`: Chưa đăng nhập (`{"error": "Not logged in", "redirect": "/login"}`).
 
 #### 🟩 Đặt hàng (Place Order)
 - **Method**: `POST`
