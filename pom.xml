@@ -8,11 +8,11 @@
         <version>3.5.6</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>hsf302.group5</groupId>
-    <artifactId>agricultural-products-management</artifactId>
+    <groupId>prm393.group8</groupId>
+    <artifactId>flower-management</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>agricultural-products-management</name>
-    <description>agricultural-products-management</description>
+    <name>flower-management</name>
+    <description>flower-management</description>
     <url/>
     <licenses>
         <license/>
@@ -36,10 +36,6 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-thymeleaf</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
@@ -50,8 +46,8 @@
             <optional>true</optional>
         </dependency>
         <dependency>
-            <groupId>com.microsoft.sqlserver</groupId>
-            <artifactId>mssql-jdbc</artifactId>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
         <dependency>
