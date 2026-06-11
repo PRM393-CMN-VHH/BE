@@ -79,38 +79,42 @@ public class PaymentController {
             // Cập nhật Order trong database
             Optional<Order> orderOpt = orderService.getOrderById(orderId);
             if (orderOpt.isPresent()) {
-                orderService.updateOrderStatus(orderId, "PENDING", "Paid");
+                Order order = orderOpt.get();
+                boolean alreadyPaid = "Paid".equalsIgnoreCase(order.getPaymentStatus());
+                if (!alreadyPaid) {
+                    orderService.updateOrderStatus(orderId, "PENDING", "Paid");
 
-                // Giảm số lượng tồn kho của từng sản phẩm sau khi thanh toán thành công
-                List<OrderDetail> orderDetails = orderDetailService.getOrderDetailsByOrderId(orderId);
-                for (OrderDetail orderDetail : orderDetails) {
-                    Product product = orderDetail.getProduct();
-                    if (product != null) {
-                        // Kiểm tra nếu là danh mục Combo/Bó hoa bằng tên thay vì ID cứng
-                        if ("Bó Hoa / Combo".equalsIgnoreCase(product.getCategory().getCategoryName())) {
-                            List<ProductComboItem> productComboItems = productComboItemService.getItemsByComboId(product.getProductId());
-                            for (ProductComboItem item : productComboItems) {
-                                int productComboItemStock = item.getComponent().getStock();
-                                int remainingStock = productComboItemStock - (orderDetail.getQuantity() * item.getQuantity());
-                                item.getComponent().setStock(Math.max(0, remainingStock));
+                    // Giảm số lượng tồn kho của từng sản phẩm sau khi thanh toán thành công
+                    List<OrderDetail> orderDetails = orderDetailService.getOrderDetailsByOrderId(orderId);
+                    for (OrderDetail orderDetail : orderDetails) {
+                        Product product = orderDetail.getProduct();
+                        if (product != null) {
+                            // Kiểm tra nếu là danh mục Combo/Bó hoa bằng tên thay vì ID cứng
+                            if ("Bó Hoa / Combo".equalsIgnoreCase(product.getCategory().getCategoryName())) {
+                                List<ProductComboItem> productComboItems = productComboItemService.getItemsByComboId(product.getProductId());
+                                for (ProductComboItem item : productComboItems) {
+                                    int productComboItemStock = item.getComponent().getStock();
+                                    int remainingStock = productComboItemStock - (orderDetail.getQuantity() * item.getQuantity());
+                                    item.getComponent().setStock(Math.max(0, remainingStock));
+                                }
                             }
+                            int currentStock = product.getStock();
+                            int quantityPurchased = orderDetail.getQuantity();
+                            int updatedStock = Math.max(0, currentStock - quantityPurchased);
+                            product.setStock(updatedStock);
+                            productService.saveProduct(product);
                         }
-                        int currentStock = product.getStock();
-                        int quantityPurchased = orderDetail.getQuantity();
-                        int updatedStock = Math.max(0, currentStock - quantityPurchased);
-                        product.setStock(updatedStock);
-                        productService.saveProduct(product);
                     }
-                }
 
-                // Xóa giỏ hàng của người dùng sau khi thanh toán thành công
-                User user = orderOpt.get().getUser();
-                if (user != null) {
-                    cartService.clearCart(user);
-                }
+                    // Xóa giỏ hàng của người dùng sau khi thanh toán thành công
+                    User user = order.getUser();
+                    if (user != null) {
+                        cartService.clearCart(user);
+                    }
 
-                // Cập nhật transaction history trong session
-                updateTransactionInHistory(session, orderId, "CONFIRMED", "Paid");
+                    // Cập nhật transaction history trong session
+                    updateTransactionInHistory(session, orderId, "CONFIRMED", "Paid");
+                }
             }
 
             response.put("status", "success");
