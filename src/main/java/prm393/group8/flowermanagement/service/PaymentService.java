@@ -5,6 +5,6 @@ import java.util.Map;
 
 public interface PaymentService {
 
-    String createVnPayPayment(int orderId, long amount, String orderInfo, HttpServletRequest request);
+    String createVnPayPayment(int orderId, long amount, String orderInfo, String bankCode, HttpServletRequest request);
     Map<String, String> handleVnPayCallback(Map<String, String> params);
 }

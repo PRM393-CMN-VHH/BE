@@ -40,10 +40,11 @@ public class PaymentController {
     public ResponseEntity<?> createPayment(
             @RequestParam(value = "orderId", defaultValue = "1") int orderId,
             @RequestParam(value = "amount", defaultValue = "150000") long amount,
+            @RequestParam(value = "bankCode", required = false) String bankCode,
             HttpServletRequest request
     ) {
         String orderInfo = "Thanh toan don hang " + orderId;
-        String paymentUrl = paymentService.createVnPayPayment(orderId, amount, orderInfo, request);
+        String paymentUrl = paymentService.createVnPayPayment(orderId, amount, orderInfo, bankCode, request);
         return ResponseEntity.ok(Map.of("paymentUrl", paymentUrl));
     }
 
@@ -52,10 +53,11 @@ public class PaymentController {
     public ResponseEntity<?> createPaymentFromCart(
             @RequestParam("orderId") int orderId,
             @RequestParam("amount") long amount,
+            @RequestParam(value = "bankCode", required = false) String bankCode,
             HttpServletRequest request
     ) {
         String orderInfo = "Thanh toan don hang #" + orderId;
-        String paymentUrl = paymentService.createVnPayPayment(orderId, amount, orderInfo, request);
+        String paymentUrl = paymentService.createVnPayPayment(orderId, amount, orderInfo, bankCode, request);
         return ResponseEntity.ok(Map.of("paymentUrl", paymentUrl));
     }
 

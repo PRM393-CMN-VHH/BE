@@ -329,8 +329,13 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 - **Method**: `POST` hoặc `GET`
 - **URL**: `/payment/create`
 - **Request Parameters**:
-  - `orderId`: ID của đơn hàng cần thanh toán
-  - `amount`: Số tiền (VND)
+  - `orderId` (Required): ID của đơn hàng cần thanh toán.
+  - `amount` (Required): Số tiền cần thanh toán (VND).
+  - `bankCode` (Optional): Mã phương thức thanh toán muốn hướng người dùng tới trực tiếp.
+    - `VNPAYQR`: Mở trực tiếp trang quét mã QR thanh toán (VNPAY-QR).
+    - `VNBANK`: Mở trực tiếp trang thanh toán bằng Thẻ nội địa / Tài khoản ngân hàng.
+    - `INTCARD`: Mở trực tiếp trang thanh toán bằng Thẻ thanh toán quốc tế (Visa, Mastercard, v.v.).
+    - *Nếu không truyền hoặc để trống*: Người dùng sẽ được đưa tới trang chọn cổng VNPay mặc định hiển thị tất cả các phương thức thanh toán.
 - **Response**:
   - `200 OK`: Trả về đường link cổng thanh toán VNPay.
     ```json
