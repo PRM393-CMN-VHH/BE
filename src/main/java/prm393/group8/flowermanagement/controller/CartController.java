@@ -297,8 +297,10 @@ public class CartController {
             orderDetailService.saveOrderDetail(orderDetail);
         }
 
-        // Xóa giỏ hàng khỏi DB
-        cartService.clearCart(account);
+        // Xóa giỏ hàng khỏi DB (Chỉ xóa ngay nếu không phải thanh toán VNPay)
+        if (!"VNPay".equalsIgnoreCase(paymentMethod)) {
+            cartService.clearCart(account);
+        }
 
         Map<String, Object> response = new HashMap<>();
         response.put("order", savedOrder);

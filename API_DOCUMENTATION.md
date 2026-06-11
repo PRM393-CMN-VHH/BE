@@ -361,7 +361,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
     ```
     *Frontend điều hướng người dùng tới `paymentUrl` để thanh toán bằng thẻ Test.*
 
-#### Cổng Xử lý callback sau khi thanh toán từ VNPay
+#### 🟩 Cổng Xử lý callback sau khi thanh toán từ VNPay
 - **Method**: `GET`
 - **URL**: `/payment/vnpayReturn`
 - **Mô tả**: Sau khi khách hàng thanh toán thành công hoặc thất bại trên VNPay, VNPay sẽ redirect trình duyệt của khách hàng kèm các query parameters về URL này. API này sẽ xử lý cập nhật trạng thái đơn hàng thành `Paid`, tự động trừ số lượng tồn kho của hoa đơn lẻ hoặc hoa trong combo từ cơ sở dữ liệu.

@@ -22,17 +22,20 @@ public class PaymentController {
     private final OrderDetailService orderDetailService;
     private final ProductService productService;
     private final ProductComboItemService productComboItemService;
+    private final CartService cartService;
 
     public PaymentController(PaymentService paymentService,
                              OrderService orderService,
                              OrderDetailService orderDetailService,
                              ProductService productService,
-                             ProductComboItemService productComboItemService) {
+                             ProductComboItemService productComboItemService,
+                             CartService cartService) {
         this.paymentService = paymentService;
         this.orderService = orderService;
         this.orderDetailService = orderDetailService;
         this.productService = productService;
         this.productComboItemService = productComboItemService;
+        this.cartService = cartService;
     }
 
     // 1. [POST] /payment/create -> Trả về JSON chứa URL thanh toán
@@ -64,7 +67,7 @@ public class PaymentController {
     // 2. [GET] /payment/vnpayReturn -> Nhận callback từ VNPay và trả về kết quả JSON
     @GetMapping("/payment/vnpayReturn")
     public ResponseEntity<?> handleVnPayReturn(@RequestParam Map<String, String> params, 
-                                            HttpSession session) {
+                                             HttpSession session) {
         Map<String, String> result = paymentService.handleVnPayCallback(params);
         Map<String, Object> response = new HashMap<>();
 
@@ -98,6 +101,12 @@ public class PaymentController {
                         product.setStock(updatedStock);
                         productService.saveProduct(product);
                     }
+                }
+
+                // Xóa giỏ hàng của người dùng sau khi thanh toán thành công
+                User user = orderOpt.get().getUser();
+                if (user != null) {
+                    cartService.clearCart(user);
                 }
 
                 // Cập nhật transaction history trong session
