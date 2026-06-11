@@ -82,9 +82,10 @@ Khi người dùng bấm "Đặt hàng", Mobile FE gọi API để khởi tạo 
 ---
 
 ### Bước 2: Lấy liên kết thanh toán VNPay (paymentUrl)
-Mobile App lấy giá trị `redirectUrl` nhận được từ Bước 1, thêm tham số `bankCode=VNPAYQR` để yêu cầu trực tiếp hiển thị mã QR thanh toán (bỏ qua trang chọn ngân hàng):
+Mobile App lấy giá trị `redirectUrl` nhận được từ Bước 1 và gọi Backend để tạo URL thanh toán. Trong môi trường sandbox hiện tại, không thêm `bankCode=VNPAYQR` vì merchant test có thể chưa hỗ trợ phương thức này:
 *   **Method**: `POST` hoặc `GET`
-*   **URL**: `/payment/create?orderId=123&amount=150000&bankCode=VNPAYQR`
+*   **URL**: `/payment/create?orderId=123&amount=150000`
+*   **URL test ngân hàng nội địa**: `/payment/create?orderId=123&amount=150000&bankCode=NCB`
 *   **Response (200 OK)**:
     ```json
     {

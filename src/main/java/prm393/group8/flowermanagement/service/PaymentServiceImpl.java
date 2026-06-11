@@ -2,6 +2,8 @@ package prm393.group8.flowermanagement.service;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Mac;
@@ -13,6 +15,8 @@ import java.util.*;
 
 @Service
 public class PaymentServiceImpl implements PaymentService {
+
+    private static final Logger logger = LoggerFactory.getLogger(PaymentServiceImpl.class);
 
     @Value("${vnpay.tmn-code}")
     private String VNP_TMN_CODE;
@@ -29,7 +33,7 @@ public class PaymentServiceImpl implements PaymentService {
     private String hmacSHA512(String key, String data) {
         try {
             Mac hmacSha512 = Mac.getInstance("HmacSHA512");
-            SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
+            SecretKeySpec secretKey = new SecretKeySpec(key.trim().getBytes(StandardCharsets.UTF_8), "HmacSHA512");
             hmacSha512.init(secretKey);
             byte[] hash = hmacSha512.doFinal(data.getBytes(StandardCharsets.UTF_8));
 
@@ -44,7 +48,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private String encodeVnPay(String value) {
-        return URLEncoder.encode(value, StandardCharsets.US_ASCII);
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private String buildVnPayHashData(Map<String, String> params) {
@@ -83,6 +87,20 @@ public class PaymentServiceImpl implements PaymentService {
         return query.toString();
     }
 
+    private String normalizeBankCode(String bankCode) {
+        if (bankCode == null || bankCode.isBlank()) {
+            return null;
+        }
+
+        String normalizedBankCode = bankCode.trim().toUpperCase(Locale.ROOT);
+        if ("VNPAYQR".equals(normalizedBankCode)) {
+            logger.warn("VNPay bankCode=VNPAYQR is not supported by this sandbox merchant; using VNPay default payment page.");
+            return null;
+        }
+
+        return normalizedBankCode;
+    }
+
     @Override
     public String createVnPayPayment(int orderId, long amount, String orderInfo, String bankCode, HttpServletRequest request) {
 
@@ -90,7 +108,7 @@ public class PaymentServiceImpl implements PaymentService {
         String vnp_Version = "2.1.0";
         String vnp_Command = "pay";
         String vnp_TxnRef = orderId + "_" + System.currentTimeMillis();
-        String vnp_TmnCode = VNP_TMN_CODE;
+        String vnp_TmnCode = VNP_TMN_CODE.trim();
         String vnp_Amount = String.valueOf(amount * 100);
 
         Map<String, String> vnp_Params = new HashMap<>();
@@ -103,11 +121,12 @@ public class PaymentServiceImpl implements PaymentService {
         vnp_Params.put("vnp_OrderInfo", orderInfo);
         vnp_Params.put("vnp_OrderType", "other");
         vnp_Params.put("vnp_Locale", "vn");
-        vnp_Params.put("vnp_ReturnUrl", VNP_RETURN_URL);
+        vnp_Params.put("vnp_ReturnUrl", VNP_RETURN_URL.trim());
         vnp_Params.put("vnp_IpAddr", vnp_IpAddr);
         
-        if (bankCode != null && !bankCode.isEmpty()) {
-            vnp_Params.put("vnp_BankCode", bankCode);
+        String normalizedBankCode = normalizeBankCode(bankCode);
+        if (normalizedBankCode != null) {
+            vnp_Params.put("vnp_BankCode", normalizedBankCode);
         }
 
         Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
@@ -117,10 +136,13 @@ public class PaymentServiceImpl implements PaymentService {
         vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
 
         String queryUrl = buildVnPayQuery(vnp_Params);
-        String vnp_SecureHash = hmacSHA512(VNP_HASH_SECRET, buildVnPayHashData(vnp_Params));
+        String hashData = buildVnPayHashData(vnp_Params);
+        String vnp_SecureHash = hmacSHA512(VNP_HASH_SECRET, hashData);
+        logger.info("VNPay create payment hashData={}", hashData);
+        logger.info("VNPay create payment secureHash={}", vnp_SecureHash);
         queryUrl += "&vnp_SecureHash=" + vnp_SecureHash;
 
-        return VNP_URL + "?" + queryUrl;
+        return VNP_URL.trim() + "?" + queryUrl;
     }
 
     @Override
@@ -131,7 +153,10 @@ public class PaymentServiceImpl implements PaymentService {
         String vnp_SecureHash = vnp_Params.remove("vnp_SecureHash");
         vnp_Params.remove("vnp_SecureHashType");
 
-        String calculatedHash = hmacSHA512(VNP_HASH_SECRET, buildVnPayHashData(vnp_Params));
+        String hashData = buildVnPayHashData(vnp_Params);
+        String calculatedHash = hmacSHA512(VNP_HASH_SECRET, hashData);
+        logger.info("VNPay callback hashData={}", hashData);
+        logger.info("VNPay callback receivedHash={}, calculatedHash={}", vnp_SecureHash, calculatedHash);
 
         if (vnp_SecureHash != null && vnp_SecureHash.equalsIgnoreCase(calculatedHash)) {
             String responseCode = vnp_Params.get("vnp_ResponseCode");
