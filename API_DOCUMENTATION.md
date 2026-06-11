@@ -16,9 +16,23 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 
 ### 2.1. Đăng Nhập & Đăng Ký (Authentication)
 
-#### 🟩 Đăng ký tài khoản mới (User)
+#### Yêu cầu gửi mã OTP đăng ký (Request OTP)
 - **Method**: `POST`
-- **URL**: `/register`
+- **URL**: `/register/request-otp`
+- **Request Body (JSON)**:
+  ```json
+  {
+    "email": "user@gmail.com"
+  }
+  ```
+- **Response**:
+  - `200 OK`: `{"message": "OTP sent successfully to user@gmail.com"}`
+  - `400 Bad Request`: Thiếu email.
+
+#### Đăng ký tài khoản mới (User) - Cần OTP
+- **Method**: `POST`
+- **URL**: `/register?otp=123456`
+- **Request Parameters (Query)**: `otp` (Mã gồm 6 chữ số gửi về email)
 - **Request Body (JSON)**:
   ```json
   {
@@ -31,12 +45,14 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
   ```
 - **Response**:
   - `200 OK`: Trả về đối tượng User vừa đăng ký thành công (kèm session đăng nhập tự động).
-  - `400 Bad Request`: Định dạng dữ liệu lỗi hoặc số điện thoại trùng lặp.
+  - `400 Bad Request`: Mã OTP sai/hết hạn, số điện thoại trùng lặp hoặc thiếu thông tin.
     ```json
+    { "error": "Invalid or expired OTP" }
+    // Hoặc
     { "phoneNumberExist": "Phone number is already in use" }
     ```
 
-#### 🟩 Đăng nhập (User / Admin)
+#### Đăng nhập (User / Admin)
 - **Method**: `POST`
 - **URL**: `/login`
 - **Request Body (JSON)**:
@@ -66,13 +82,13 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
   - `400 Bad Request`: Tài khoản bị vô hiệu hóa.
   - `401 Unauthorized`: Sai tài khoản hoặc mật khẩu.
 
-#### 🟩 Đăng xuất
+#### Đăng xuất
 - **Method**: `POST` hoặc `GET`
 - **URL**: `/logout`
 - **Response**:
   - `200 OK`: `{"message": "Logged out successfully"}`
 
-#### 🟩 Lấy thông tin tài khoản đang đăng nhập hiện tại (Check Session)
+#### Lấy thông tin tài khoản đang đăng nhập hiện tại (Check Session)
 - **Method**: `GET`
 - **URL**: `/api/users/me`
 - **Response**:
@@ -83,14 +99,14 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 
 ### 2.2. Hồ Sơ Cá Nhân (User Profile)
 
-#### 🟩 Lấy thông tin hồ sơ
+#### Lấy thông tin hồ sơ
 - **Method**: `GET`
 - **URL**: `/profile`
 - **Response**:
   - `200 OK`: Đối tượng User đầy đủ.
   - `401 Unauthorized`: Chưa đăng nhập.
 
-#### 🟩 Cập nhật hồ sơ
+#### Cập nhật hồ sơ
 - **Method**: `POST`
 - **URL**: `/profile/update`
 - **Request Body (JSON)**:
@@ -108,7 +124,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 
 ### 2.3. Sản Phẩm Hoa & Danh Mục (Products & Categories)
 
-#### 🟩 Lấy toàn bộ sản phẩm hoa
+#### Lấy toàn bộ sản phẩm hoa
 - **Method**: `GET`
 - **URL**: `/product/all-product`
 - **Response**:
@@ -127,7 +143,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
     ]
     ```
 
-#### 🟩 Xem chi tiết sản phẩm hoa & Sản phẩm liên quan
+#### Xem chi tiết sản phẩm hoa & Sản phẩm liên quan
 - **Method**: `GET`
 - **URL**: `/products/{id}` (ví dụ: `/products/1`)
 - **Response**:
@@ -139,7 +155,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
     }
     ```
 
-#### 🟩 Xem các sản phẩm hoa theo Danh mục (Category)
+#### Xem các sản phẩm hoa theo Danh mục (Category)
 - **Method**: `GET`
 - **URL**: `/product/category/{categoryId}` (ví dụ: `/product/category/1`)
 - **Response**:
@@ -153,7 +169,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
     }
     ```
 
-#### 🟩 Tìm kiếm sản phẩm hoa
+#### Tìm kiếm sản phẩm hoa
 - **Method**: `POST`
 - **URL**: `/product/search`
 - **Request Parameters (Form Data)**:
@@ -161,7 +177,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 - **Response**:
   - `200 OK`: Mảng JSON chứa danh sách sản phẩm khớp từ khóa.
 
-#### 🟩 Gợi ý tìm kiếm nhanh (Search Autocomplete/Suggest)
+#### Gợi ý tìm kiếm nhanh (Search Autocomplete/Suggest)
 - **Method**: `GET`
 - **URL**: `/api/products/suggest`
 - **Request Parameters (Query)**:
@@ -180,7 +196,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 
 *Lưu ý: Giỏ hàng được quản lý lưu trong cơ sở dữ liệu (`cart_items`) liên kết với tài khoản người dùng đang đăng nhập. Frontend bắt buộc phải gửi credentials/cookies (ví dụ trong axios: `{ withCredentials: true }`) để được xác thực. Nếu chưa đăng nhập, tất cả các API giỏ hàng bên dưới sẽ trả về lỗi `401 Unauthorized`.*
 
-#### 🟩 Xem giỏ hàng hiện tại
+#### Xem giỏ hàng hiện tại
 - **Method**: `GET`
 - **URL**: `/cart`
 - **Response**:
@@ -201,7 +217,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
     ```
   - `401 Unauthorized`: `{"error": "Not logged in", "redirect": "/login"}`
 
-#### 🟩 Thêm sản phẩm hoa vào giỏ
+#### Thêm sản phẩm hoa vào giỏ
 - **Method**: `POST`
 - **URL**: `/cart/add`
 - **Request Body (JSON) hoặc Request Parameters**:
@@ -212,7 +228,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
   - `400 Bad Request`: Hết hàng trong kho, số lượng <= 0, v.v.
   - `401 Unauthorized`: `{"error": "Not logged in", "redirect": "/login"}`
 
-#### 🟩 Cập nhật số lượng sản phẩm trong giỏ
+#### Cập nhật số lượng sản phẩm trong giỏ
 - **Method**: `POST`
 - **URL**: `/cart/update`
 - **Request Body (JSON) hoặc Request Parameters**:
@@ -223,7 +239,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
   - `400 Bad Request`: Số lượng <= 0 hoặc vượt quá tồn kho, v.v.
   - `401 Unauthorized`: `{"error": "Not logged in", "redirect": "/login"}`
 
-#### 🟩 Xóa sản phẩm khỏi giỏ hàng
+#### Xóa sản phẩm khỏi giỏ hàng
 - **Method**: `POST`
 - **URL**: `/cart/remove`
 - **Request Body (JSON) hoặc Request Parameters**:
@@ -232,14 +248,14 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
   - `200 OK`: `{"message": "Đã xóa sản phẩm khỏi giỏ hàng!", "cart": [...]}`
   - `401 Unauthorized`: `{"error": "Not logged in", "redirect": "/login"}`
 
-#### 🟩 Thông tin trang Thanh toán (Checkout Summary)
+#### Thông tin trang Thanh toán (Checkout Summary)
 - **Method**: `GET`
 - **URL**: `/cart/checkout`
 - **Response**:
   - `200 OK`: Trả về `cart`, `total` và `account` (thông tin người giao hàng mặc định).
   - `401 Unauthorized`: Chưa đăng nhập (`{"error": "Not logged in", "redirect": "/login"}`).
 
-#### 🟩 Đặt hàng (Place Order)
+#### Đặt hàng (Place Order)
 - **Method**: `POST`
 - **URL**: `/cart/place-order`
 - **Request Body (JSON) hoặc Request Parameters**:
@@ -276,13 +292,13 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 
 ### 2.5. Đơn Hàng & Cổng Thanh Toán (Orders & Payments)
 
-#### 🟩 Danh sách đơn hàng của tôi (Lịch sử đơn hàng)
+#### Danh sách đơn hàng của tôi (Lịch sử đơn hàng)
 - **Method**: `GET`
 - **URL**: `/order/my-orders`
 - **Response**:
   - `200 OK`: Mảng các đơn hàng của user đang đăng nhập.
 
-#### 🟩 Chi tiết đơn hàng
+#### Chi tiết đơn hàng
 - **Method**: `GET`
 - **URL**: `/order/detail/{id}` (ví dụ: `/order/detail/5`)
 - **Response**:
@@ -301,7 +317,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
     }
     ```
 
-#### 🟩 Thanh toán lại đơn hàng chưa thanh toán (Re-pay qua VNPay)
+#### Thanh toán lại đơn hàng chưa thanh toán (Re-pay qua VNPay)
 - **Method**: `POST`
 - **URL**: `/order/pay/{id}`
 - **Response**:
@@ -313,19 +329,19 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
     }
     ```
 
-#### 🟩 Hủy đơn hàng (Chỉ khi chưa thanh toán)
+#### Hủy đơn hàng (Chỉ khi chưa thanh toán)
 - **Method**: `POST`
 - **URL**: `/order/cancel/{id}`
 - **Response**:
   - `200 OK`: `{"message": "Đã hủy giao dịch của đơn hàng #5", "status": "CANCELLED"}`
 
-#### 🟩 Lịch sử giao dịch đã thanh toán thành công
+#### Lịch sử giao dịch đã thanh toán thành công
 - **Method**: `GET`
 - **URL**: `/transaction/history`
 - **Response**:
   - `200 OK`: Mảng các đơn hàng đã thanh toán thành công (`paymentStatus` là `Paid`).
 
-#### 🟩 Cổng Tạo link thanh toán VNPay Sandbox
+#### Cổng Tạo link thanh toán VNPay Sandbox
 - **Method**: `POST` hoặc `GET`
 - **URL**: `/payment/create`
 - **Request Parameters**:
@@ -345,7 +361,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
     ```
     *Frontend điều hướng người dùng tới `paymentUrl` để thanh toán bằng thẻ Test.*
 
-#### 🟩 Cổng Xử lý callback sau khi thanh toán từ VNPay
+#### Cổng Xử lý callback sau khi thanh toán từ VNPay
 - **Method**: `GET`
 - **URL**: `/payment/vnpayReturn`
 - **Mô tả**: Sau khi khách hàng thanh toán thành công hoặc thất bại trên VNPay, VNPay sẽ redirect trình duyệt của khách hàng kèm các query parameters về URL này. API này sẽ xử lý cập nhật trạng thái đơn hàng thành `Paid`, tự động trừ số lượng tồn kho của hoa đơn lẻ hoặc hoa trong combo từ cơ sở dữ liệu.
@@ -359,20 +375,20 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 
 *Lưu ý: Tất cả các APIs quản trị yêu cầu Admin đăng nhập trước (Session `adminInfo` phải tồn tại và có `roleId` = 1).*
 
-#### 🟩 Đăng nhập Admin
+#### Đăng nhập Admin
 - **Method**: `POST`
 - **URL**: `/admin/login`
 - **Request Body (JSON) hoặc parameters**: `email`, `password`
 - **Response**:
   - `200 OK`: Trả về dữ liệu chi tiết của quản trị viên và lưu vào Session.
 
-#### 🟩 Xem Thống kê Dashboard
+#### Xem Thống kê Dashboard
 - **Method**: `GET`
 - **URL**: `/admin/dashboard`
 - **Response**:
   - `200 OK`: Trả về tổng số thành viên, sản phẩm, đơn hàng, danh sách 5 thành viên đăng ký mới nhất và số lượng đơn hàng phân loại theo từng trạng thái (PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED).
 
-#### 🟩 Lấy danh sách đơn hàng & Lọc đơn hàng (Phân trang)
+#### Lấy danh sách đơn hàng & Lọc đơn hàng (Phân trang)
 - **Method**: `GET`
 - **URL**: `/admin/orders`
 - **Query Parameters**:
@@ -383,7 +399,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 - **Response**:
   - `200 OK`: Đối tượng chứa danh sách `orders`, `currentPage`, `totalPage`, danh sách `statuses`.
 
-#### 🟩 Cập nhật trạng thái đơn hàng (Admin)
+#### Cập nhật trạng thái đơn hàng (Admin)
 - **Method**: `POST`
 - **URL**: `/admin/orders/update-status`
 - **Request Parameters**:
@@ -393,14 +409,14 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 - **Response**:
   - `200 OK`: `{"message": "Cập nhật trạng thái thành công!", "status": "..."}`
 
-#### 🟩 Xem/Tìm kiếm sản phẩm hoa phân trang (Admin)
+#### Xem/Tìm kiếm sản phẩm hoa phân trang (Admin)
 - **Method**: `GET`
 - **URL**: `/admin/products`
 - **Query Parameters**: `pageNo` (mặc định 1), `keyword` (tìm kiếm tùy chọn)
 - **Response**:
   - `200 OK`: `{"products": [...], "currentPage": 1, "totalPage": 5, "categories": [...]}`
 
-#### 🟩 Thêm sản phẩm hoa mới (Admin)
+#### Thêm sản phẩm hoa mới (Admin)
 - **Method**: `POST`
 - **URL**: `/admin/products/add`
 - **Request Body (JSON)**:
@@ -417,7 +433,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 - **Response**:
   - `200 OK`: Chi tiết sản phẩm hoa vừa thêm thành công.
 
-#### 🟩 Sửa thông tin sản phẩm hoa (Admin)
+#### Sửa thông tin sản phẩm hoa (Admin)
 - **Method**: `POST`
 - **URL**: `/admin/products/edit`
 - **Request Body (JSON)**:
@@ -435,19 +451,19 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 - **Response**:
   - `200 OK`: Đối tượng sản phẩm hoa sau khi sửa.
 
-#### 🟩 Xóa sản phẩm hoa (Admin)
+#### Xóa sản phẩm hoa (Admin)
 - **Method**: `DELETE` hoặc `GET`
 - **URL**: `/admin/products/delete/{id}`
 - **Response**:
   - `200 OK`: `{"message": "Product deleted successfully"}`
 
-#### 🟩 Lấy danh sách sản phẩm thiết kế Combo (Admin)
+#### Lấy danh sách sản phẩm thiết kế Combo (Admin)
 - **Method**: `GET`
 - **URL**: `/admin/products/combo`
 - **Response**:
   - `200 OK`: Mảng các sản phẩm thuộc danh mục "Bó Hoa / Combo".
 
-#### 🟩 Xem và Chỉnh sửa thành phần của bó hoa combo (Admin)
+#### Xem và Chỉnh sửa thành phần của bó hoa combo (Admin)
 - **Method**: `GET`
 - **URL**: `/admin/products/combo/add-item/{id}` (ví dụ: `/admin/products/combo/add-item/7`)
 - **Response**:
@@ -462,7 +478,7 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
     }
     ```
 
-#### 🟩 Thêm hoa đơn lẻ vào bó combo hoặc Cập nhật số lượng (Admin)
+#### Thêm hoa đơn lẻ vào bó combo hoặc Cập nhật số lượng (Admin)
 - **Method**: `POST`
 - **URL**: `/admin/products/combo/add-item`
 - **Request Parameters**:
@@ -472,20 +488,20 @@ Tài liệu này dùng để cung cấp cho lập trình viên Frontend hoặc l
 - **Response**:
   - `200 OK`: Trả về mảng `comboItems` mới của combo đó.
 
-#### 🟩 Xóa hoa đơn lẻ ra khỏi bó combo (Admin)
+#### Xóa hoa đơn lẻ ra khỏi bó combo (Admin)
 - **Method**: `DELETE` hoặc `GET`
 - **URL**: `/admin/products/combo/remove-item/{id}` (ví dụ: `/admin/products/combo/remove-item/1`)
 - **Response**:
   - `200 OK`: Trả về mảng `comboItems` cập nhật.
 
-#### 🟩 Xem/Tìm kiếm danh sách thành viên (Admin)
+#### Xem/Tìm kiếm danh sách thành viên (Admin)
 - **Method**: `GET`
 - **URL**: `/admin/users`
 - **Query Parameters**: `pageNo` (mặc định 1), `search` (tên tìm kiếm tùy chọn)
 - **Response**:
   - `200 OK`: `{"users": [...], "currentPage": 1, "totalPage": 2}`
 
-#### 🟩 Vô hiệu hóa (Deactivate) / Kích hoạt (Activate) thành viên (Admin)
+#### Vô hiệu hóa (Deactivate) / Kích hoạt (Activate) thành viên (Admin)
 - **Method**: `POST` hoặc `GET`
 - **URL**: `/admin/users/deactivate/{id}` hoặc `/admin/users/activate/{id}`
 - **Response**:

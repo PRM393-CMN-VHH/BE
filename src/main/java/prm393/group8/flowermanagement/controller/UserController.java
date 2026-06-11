@@ -2,6 +2,7 @@ package prm393.group8.flowermanagement.controller;
 
 import prm393.group8.flowermanagement.entity.Role;
 import prm393.group8.flowermanagement.entity.User;
+import prm393.group8.flowermanagement.service.OtpService;
 import prm393.group8.flowermanagement.service.RoleServiceImpl;
 import prm393.group8.flowermanagement.service.UserServiceImpl;
 import jakarta.servlet.http.HttpSession;
@@ -19,13 +20,16 @@ public class UserController {
 
     private final UserServiceImpl userService;
     private final RoleServiceImpl roleService;
+    private final OtpService otpService;
 
     public UserController(
             UserServiceImpl userService,
-            RoleServiceImpl roleService
+            RoleServiceImpl roleService,
+            OtpService otpService
     ) {
         this.userService = userService;
         this.roleService = roleService;
+        this.otpService = otpService;
     }
 
     @GetMapping("/register")
@@ -33,10 +37,24 @@ public class UserController {
         return ResponseEntity.ok(Map.of("message", "Please use POST /register to sign up."));
     }
 
+    @PostMapping("/register/request-otp")
+    public ResponseEntity<?> requestOtp(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        if (email == null || email.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Email is required"));
+        }
+        
+        String otp = otpService.generateOtp();
+        otpService.saveOtpToRedis(email, otp);
+        otpService.sendOtpEmail(email, otp);
+        return ResponseEntity.ok(Map.of("message", "OTP sent successfully to " + email));
+    }
+
     @PostMapping("/register")
     public ResponseEntity<?> registerPost(
             @Valid @RequestBody(required = false) User userBody,
             @ModelAttribute User userParam,
+            @RequestParam(value = "otp", required = false) String otp,
             BindingResult bindingResult,
             HttpSession session
     ) {
@@ -52,6 +70,10 @@ public class UserController {
 
         if (userService.getByPhoneNumber(user.getPhoneNumber()) != null) {
             return ResponseEntity.badRequest().body(Map.of("phoneNumberExist", "Phone number is already in use"));
+        }
+
+        if (otp == null || otp.isEmpty() || !otpService.verifyOtp(user.getEmail(), otp)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid or expired OTP"));
         }
 
         // Get role and check if it exists
