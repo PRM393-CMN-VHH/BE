@@ -21,10 +21,26 @@ public class ProfileController {
         this.userService = userService;
     }
 
+    private User currentSessionUser(HttpSession session) {
+        User account = (User) session.getAttribute("account");
+        if (account != null) {
+            return account;
+        }
+        return (User) session.getAttribute("adminInfo");
+    }
+
+    private void updateSessionUser(HttpSession session, User updatedUser) {
+        if (session.getAttribute("adminInfo") != null) {
+            session.setAttribute("adminInfo", updatedUser);
+        } else {
+            session.setAttribute("account", updatedUser);
+        }
+    }
+
     // 1. [GET] /profile - Lấy hồ sơ cá nhân
     @GetMapping
     public ResponseEntity<?> profilePage(HttpSession session) {
-        User account = (User) session.getAttribute("account");
+        User account = currentSessionUser(session);
         if (account == null) {
             return ResponseEntity.status(401).body(Map.of("error", "Not logged in"));
         }
@@ -43,7 +59,7 @@ public class ProfileController {
             return ResponseEntity.badRequest().body(result.getAllErrors());
         }
 
-        User currentUser = (User) session.getAttribute("account");
+        User currentUser = currentSessionUser(session);
         if (currentUser == null) {
             return ResponseEntity.status(401).body(Map.of("error", "Not logged in"));
         }
@@ -62,7 +78,7 @@ public class ProfileController {
         User updatedUser = userService.findById(accountForm.getUserId());
 
         // Cập nhật session
-        session.setAttribute("account", updatedUser);
+        updateSessionUser(session, updatedUser);
 
         return ResponseEntity.ok(updatedUser);
     }

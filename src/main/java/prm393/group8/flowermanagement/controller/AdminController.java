@@ -29,19 +29,22 @@ public class AdminController {
     private final CategoryService categoryService;
     private final OrderDetailService orderDetailService;
     private final ProductComboItemService productComboItemService;
+    private final RoleService roleService;
 
     public AdminController(ProductService productService,
                            UserService userService,
                            OrderService orderService,
                            CategoryService categoryService,
                            OrderDetailService orderDetailService,
-                           ProductComboItemService productComboItemService) {
+                           ProductComboItemService productComboItemService,
+                           RoleService roleService) {
         this.productService = productService;
         this.userService = userService;
         this.orderService = orderService;
         this.categoryService = categoryService;
         this.orderDetailService = orderDetailService;
         this.productComboItemService = productComboItemService;
+        this.roleService = roleService;
     }
 
     private int getComboCategoryId() {
@@ -510,6 +513,32 @@ public class AdminController {
     @GetMapping("/users/activate/{id}")
     public ResponseEntity<?> activeUserLegacy(@PathVariable("id") int id, HttpSession session) {
         return activeUser(id, session);
+    }
+
+    @PostMapping("/users/update-role/{id}")
+    public ResponseEntity<?> updateUserRole(
+            @PathVariable("id") int id,
+            @RequestParam("roleId") int roleId,
+            HttpSession session
+    ) {
+        User adminInfo = checkingAdminRole(session);
+        if (adminInfo == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        }
+
+        User existing = userService.findById(id);
+        if (existing == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "User not found"));
+        }
+
+        Role role = roleService.getByRoleId(roleId);
+        if (role == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Role not found"));
+        }
+
+        existing.setRole(role);
+        userService.saveUser(existing);
+        return ResponseEntity.ok(existing);
     }
 
     @GetMapping("/logout")
