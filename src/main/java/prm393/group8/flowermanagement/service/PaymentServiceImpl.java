@@ -42,6 +42,47 @@ public class PaymentServiceImpl implements PaymentService {
             throw new RuntimeException("Không thể tạo chữ ký HmacSHA512", e);
         }
     }
+
+    private String encodeVnPay(String value) {
+        return URLEncoder.encode(value, StandardCharsets.US_ASCII);
+    }
+
+    private String buildVnPayHashData(Map<String, String> params) {
+        List<String> fieldNames = new ArrayList<>(params.keySet());
+        Collections.sort(fieldNames);
+        StringBuilder hashData = new StringBuilder();
+
+        for (String fieldName : fieldNames) {
+            String fieldValue = params.get(fieldName);
+            if (fieldValue != null && !fieldValue.isEmpty()) {
+                if (!hashData.isEmpty()) {
+                    hashData.append('&');
+                }
+                hashData.append(fieldName).append('=').append(encodeVnPay(fieldValue));
+            }
+        }
+
+        return hashData.toString();
+    }
+
+    private String buildVnPayQuery(Map<String, String> params) {
+        List<String> fieldNames = new ArrayList<>(params.keySet());
+        Collections.sort(fieldNames);
+        StringBuilder query = new StringBuilder();
+
+        for (String fieldName : fieldNames) {
+            String fieldValue = params.get(fieldName);
+            if (fieldValue != null && !fieldValue.isEmpty()) {
+                if (!query.isEmpty()) {
+                    query.append('&');
+                }
+                query.append(encodeVnPay(fieldName)).append('=').append(encodeVnPay(fieldValue));
+            }
+        }
+
+        return query.toString();
+    }
+
     @Override
     public String createVnPayPayment(int orderId, long amount, String orderInfo, String bankCode, HttpServletRequest request) {
 
@@ -69,40 +110,14 @@ public class PaymentServiceImpl implements PaymentService {
             vnp_Params.put("vnp_BankCode", bankCode);
         }
 
-        Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
+        Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
+        formatter.setTimeZone(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
         String vnp_CreateDate = formatter.format(cld.getTime());
         vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
 
-        List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
-        Collections.sort(fieldNames);
-        StringBuilder hashData = new StringBuilder();
-        StringBuilder query = new StringBuilder();
-
-        boolean first = true;
-        for (String fieldName : fieldNames) {
-            String fieldValue = vnp_Params.get(fieldName);
-            if (fieldValue != null && !fieldValue.isEmpty()) {
-                if (!first) {
-                    hashData.append('&');
-                    query.append('&');
-                }
-
-                String encodedValue;
-                encodedValue = URLEncoder.encode(fieldValue, StandardCharsets.UTF_8).replace("+", "%20");
-
-                hashData.append(fieldName).append('=').append(encodedValue);
-
-                String encodedName;
-                encodedName = URLEncoder.encode(fieldName, StandardCharsets.UTF_8).replace("+", "%20");
-
-                query.append(encodedName).append('=').append(encodedValue);
-                first = false;
-            }
-        }
-
-        String queryUrl = query.toString();
-        String vnp_SecureHash = hmacSHA512(VNP_HASH_SECRET, hashData.toString());
+        String queryUrl = buildVnPayQuery(vnp_Params);
+        String vnp_SecureHash = hmacSHA512(VNP_HASH_SECRET, buildVnPayHashData(vnp_Params));
         queryUrl += "&vnp_SecureHash=" + vnp_SecureHash;
 
         return VNP_URL + "?" + queryUrl;
@@ -116,27 +131,7 @@ public class PaymentServiceImpl implements PaymentService {
         String vnp_SecureHash = vnp_Params.remove("vnp_SecureHash");
         vnp_Params.remove("vnp_SecureHashType");
 
-        List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
-        Collections.sort(fieldNames);
-        StringBuilder hashData = new StringBuilder();
-
-        boolean first = true;
-        for (String fieldName : fieldNames) {
-            String fieldValue = vnp_Params.get(fieldName);
-            if (fieldValue != null && !fieldValue.isEmpty()) {
-                if (!first) {
-                    hashData.append('&');
-                }
-
-                String encodedValue;
-                encodedValue = URLEncoder.encode(fieldValue, StandardCharsets.UTF_8).replace("+", "%20");
-
-                hashData.append(fieldName).append('=').append(encodedValue);
-                first = false;
-            }
-        }
-
-        String calculatedHash = hmacSHA512(VNP_HASH_SECRET, hashData.toString());
+        String calculatedHash = hmacSHA512(VNP_HASH_SECRET, buildVnPayHashData(vnp_Params));
 
         if (vnp_SecureHash != null && vnp_SecureHash.equalsIgnoreCase(calculatedHash)) {
             String responseCode = vnp_Params.get("vnp_ResponseCode");
