@@ -28,12 +28,16 @@ public class Product {
     private String productName;
 
     @NotBlank(message = "Mô tả không được để trống")
-    @Column(length = 255)
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @Min(value = 100, message = "Giá sản phẩm phải lớn hơn 100 VND")
     @Column(nullable = false)
     private double price;
+
+    // Giá khuyến mãi (null = không khuyến mãi)
+    @Column(name = "promo_price")
+    private Double promoPrice;
 
     @Min(value = 0, message = "Số lượng trong kho không được nhỏ hơn 0")
     @Column(nullable = false)

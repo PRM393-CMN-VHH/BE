@@ -28,31 +28,23 @@ public class AdminController {
     private final OrderService orderService;
     private final CategoryService categoryService;
     private final OrderDetailService orderDetailService;
-    private final ProductComboItemService productComboItemService;
     private final RoleService roleService;
+    private final NotificationService notificationService;
 
     public AdminController(ProductService productService,
                            UserService userService,
                            OrderService orderService,
                            CategoryService categoryService,
                            OrderDetailService orderDetailService,
-                           ProductComboItemService productComboItemService,
-                           RoleService roleService) {
+                           RoleService roleService,
+                           NotificationService notificationService) {
         this.productService = productService;
         this.userService = userService;
         this.orderService = orderService;
         this.categoryService = categoryService;
         this.orderDetailService = orderDetailService;
-        this.productComboItemService = productComboItemService;
         this.roleService = roleService;
-    }
-
-    private int getComboCategoryId() {
-        return categoryService.getAllCategories().stream()
-                .filter(c -> "Bó Hoa / Combo".equalsIgnoreCase(c.getCategoryName()))
-                .findFirst()
-                .map(Category::getCategoryId)
-                .orElse(8); // fallback to 8
+        this.notificationService = notificationService;
     }
 
     // ================= Login page =================
@@ -188,22 +180,23 @@ public class AdminController {
         }
 
         orderService.updateOrderStatusById(orderId, status);
-        
+
+        // Gửi thông báo cập nhật trạng thái cho khách hàng của đơn
+        orderService.getOrderById(orderId).ifPresent(order -> {
+            if (order.getUser() != null) {
+                notificationService.notify(
+                        order.getUser(),
+                        "Cập nhật đơn hàng #" + orderId,
+                        statusMessage(orderId, status));
+            }
+        });
+
         // Trả lại số lượng tồn kho của từng sản phẩm sau khi hủy đơn hàng
         if ("CANCELLED".equalsIgnoreCase(status)) {
             List<OrderDetail> orderDetails = orderDetailService.getOrderDetailsByOrderId(orderId);
-            int comboCategoryId = getComboCategoryId();
             for (OrderDetail orderDetail : orderDetails) {
                 Product product = orderDetail.getProduct();
                 if (product != null) {
-                    if (product.getCategory().getCategoryId() == comboCategoryId) {
-                        List<ProductComboItem> productComboItems = productComboItemService.getItemsByComboId(product.getProductId());
-                        for (ProductComboItem item : productComboItems) {
-                            int productComboItemStock = item.getComponent().getStock();
-                            int remainingStock = productComboItemStock + (orderDetail.getQuantity() * item.getQuantity());
-                            item.getComponent().setStock(remainingStock);
-                        }
-                    }
                     int currentStock = product.getStock();
                     int quantityPurchased = orderDetail.getQuantity();
                     int updatedStock = Math.max(0, currentStock + quantityPurchased);
@@ -279,88 +272,6 @@ public class AdminController {
 
         Product saved = productService.saveProduct(product);
         return ResponseEntity.ok(saved);
-    }
-
-    @GetMapping("/products/combo")
-    public ResponseEntity<?> addProductComboPage(HttpSession session) {
-        User adminInfo = checkingAdminRole(session);
-        if (adminInfo == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
-        }
-
-        int comboCategoryId = getComboCategoryId();
-        List<Product> comboProducts = productService.getProductsByCategoryId(comboCategoryId);
-        return ResponseEntity.ok(comboProducts);
-    }
-
-    @GetMapping("/products/combo/add-item/{id}")
-    public ResponseEntity<?> addProductComboItemPage(
-            HttpSession session,
-            @PathVariable("id") int id
-    ) {
-        User adminInfo = checkingAdminRole(session);
-        if (adminInfo == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
-        }
-
-        Product productParent = productService.getProductById(id).orElse(null);
-        if (productParent == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Không tìm thấy sản phẩm combo"));
-        }
-
-        int comboCategoryId = getComboCategoryId();
-        List<ProductComboItem> comboItems = productComboItemService.getItemsByComboId(id);
-        List<Product> productList = productService.getAllProductsByCategoryIdNot(comboCategoryId);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("productParent", productParent);
-        response.put("comboItems", comboItems);
-        response.put("productList", productList);
-
-        return ResponseEntity.ok(response);
-    }
-
-    @PostMapping("/products/combo/add-item")
-    public ResponseEntity<?> addProductToCombo(
-            @RequestParam("comboId") int comboId,
-            @RequestParam("productId") int productId,
-            @RequestParam("quantity") int quantity
-    ) {
-        Product item = productService.getProductById(productId).orElse(null);
-        Product productParent = productService.getProductById(comboId).orElse(null);
-        if (item == null || productParent == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Lỗi sản phẩm"));
-        }
-
-        ProductComboItem existing = productComboItemService.getByComboAndComponent(productParent, item);
-        if (existing != null) {
-            existing.setQuantity(existing.getQuantity() + quantity);
-            productComboItemService.save(existing);
-        } else {
-            ProductComboItem pci = new ProductComboItem(productParent, item, quantity);
-            productComboItemService.save(pci);
-        }
-
-        List<ProductComboItem> comboItems = productComboItemService.getItemsByComboId(comboId);
-        return ResponseEntity.ok(comboItems);
-    }
-
-    @DeleteMapping("/products/combo/remove-item/{id}")
-    public ResponseEntity<?> removeProductFromCombo(@PathVariable("id") int id) {
-        ProductComboItem pci = productComboItemService.getById(id);
-        if (pci != null) {
-            int comboId = pci.getCombo().getProductId();
-            productComboItemService.delete(pci);
-            List<ProductComboItem> comboItems = productComboItemService.getItemsByComboId(comboId);
-            return ResponseEntity.ok(comboItems);
-        }
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Combo item not found"));
-    }
-
-    // Legacy GET mapping
-    @GetMapping("/products/combo/remove-item/{id}")
-    public ResponseEntity<?> removeProductFromComboLegacy(@PathVariable("id") int id) {
-        return removeProductFromCombo(id);
     }
 
     @DeleteMapping("/products/delete/{id}")
@@ -545,5 +456,15 @@ public class AdminController {
     public ResponseEntity<?> adminLogout(HttpSession session) {
         session.invalidate();
         return ResponseEntity.ok(Map.of("message", "Admin logged out successfully"));
+    }
+
+    private String statusMessage(int orderId, String status) {
+        return switch (status.toUpperCase()) {
+            case "CONFIRMED" -> "Đơn hàng #" + orderId + " đã được xác nhận và đang được chuẩn bị.";
+            case "SHIPPED" -> "Đơn hàng #" + orderId + " đang trên đường giao đến bạn.";
+            case "DELIVERED" -> "Đơn hàng #" + orderId + " đã giao thành công. Cảm ơn bạn đã mua hoa tại Tiệm Hoa Xinh!";
+            case "CANCELLED" -> "Đơn hàng #" + orderId + " đã bị hủy. Liên hệ cửa hàng nếu bạn cần hỗ trợ.";
+            default -> "Đơn hàng #" + orderId + " chuyển sang trạng thái " + status + ".";
+        };
     }
 }

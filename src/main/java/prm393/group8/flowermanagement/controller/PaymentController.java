@@ -15,47 +15,35 @@ import java.util.List;
 
 @RestController
 @CrossOrigin(origins = "*")
+@RequestMapping("/payment")
 public class PaymentController {
 
     private final PaymentService paymentService;
     private final OrderService orderService;
     private final OrderDetailService orderDetailService;
     private final ProductService productService;
-    private final ProductComboItemService productComboItemService;
     private final CartService cartService;
+    private final NotificationService notificationService;
 
     public PaymentController(PaymentService paymentService,
                              OrderService orderService,
                              OrderDetailService orderDetailService,
                              ProductService productService,
-                             ProductComboItemService productComboItemService,
-                             CartService cartService) {
+                             CartService cartService,
+                             NotificationService notificationService) {
         this.paymentService = paymentService;
         this.orderService = orderService;
         this.orderDetailService = orderDetailService;
         this.productService = productService;
-        this.productComboItemService = productComboItemService;
         this.cartService = cartService;
+        this.notificationService = notificationService;
     }
 
-    // 1. [POST] /payment/create -> Trả về JSON chứa URL thanh toán
-    @PostMapping("/payment/create")
+    // 1. [GET/POST] /payment/create -> Trả về JSON chứa URL thanh toán
+    @RequestMapping(value = "/create", method = {RequestMethod.GET, RequestMethod.POST})
     public ResponseEntity<?> createPayment(
             @RequestParam(value = "orderId", defaultValue = "1") int orderId,
             @RequestParam(value = "amount", defaultValue = "150000") long amount,
-            @RequestParam(value = "bankCode", required = false) String bankCode,
-            HttpServletRequest request
-    ) {
-        String orderInfo = "Thanh toan don hang " + orderId;
-        String paymentUrl = paymentService.createVnPayPayment(orderId, amount, orderInfo, bankCode, request);
-        return ResponseEntity.ok(Map.of("paymentUrl", paymentUrl));
-    }
-
-    // Tạo thanh toán từ Cart (GET) -> Trả về JSON chứa URL thanh toán
-    @GetMapping("/payment/create")
-    public ResponseEntity<?> createPaymentFromCart(
-            @RequestParam("orderId") int orderId,
-            @RequestParam("amount") long amount,
             @RequestParam(value = "bankCode", required = false) String bankCode,
             HttpServletRequest request
     ) {
@@ -65,7 +53,7 @@ public class PaymentController {
     }
 
     // 2. [GET] /payment/vnpayReturn -> Nhận callback từ VNPay và trả về kết quả JSON
-    @GetMapping("/payment/vnpayReturn")
+    @GetMapping("/vnpayReturn")
     public ResponseEntity<?> handleVnPayReturn(@RequestParam Map<String, String> params, 
                                              HttpSession session) {
         Map<String, String> result = paymentService.handleVnPayCallback(params);
@@ -89,15 +77,6 @@ public class PaymentController {
                     for (OrderDetail orderDetail : orderDetails) {
                         Product product = orderDetail.getProduct();
                         if (product != null) {
-                            // Kiểm tra nếu là danh mục Combo/Bó hoa bằng tên thay vì ID cứng
-                            if ("Bó Hoa / Combo".equalsIgnoreCase(product.getCategory().getCategoryName())) {
-                                List<ProductComboItem> productComboItems = productComboItemService.getItemsByComboId(product.getProductId());
-                                for (ProductComboItem item : productComboItems) {
-                                    int productComboItemStock = item.getComponent().getStock();
-                                    int remainingStock = productComboItemStock - (orderDetail.getQuantity() * item.getQuantity());
-                                    item.getComponent().setStock(Math.max(0, remainingStock));
-                                }
-                            }
                             int currentStock = product.getStock();
                             int quantityPurchased = orderDetail.getQuantity();
                             int updatedStock = Math.max(0, currentStock - quantityPurchased);
@@ -110,6 +89,11 @@ public class PaymentController {
                     User user = order.getUser();
                     if (user != null) {
                         cartService.clearCart(user);
+                        notificationService.notify(
+                                user,
+                                "Thanh toán thành công",
+                                "Giao dịch VNPay cho đơn hàng #" + orderId
+                                        + " đã hoàn tất. Đơn hàng đang chờ cửa hàng xác nhận.");
                     }
 
                     // Cập nhật transaction history trong session
@@ -131,7 +115,7 @@ public class PaymentController {
     }
 
     // 3. [GET] /payment/paymentform.html -> Trả về helper JSON
-    @GetMapping("/payment/paymentform.html")
+    @GetMapping("/paymentform.html")
     public ResponseEntity<?> showPaymentForm() {
         return ResponseEntity.ok(Map.of("message", "Use POST /payment/create with orderId and amount."));
     }

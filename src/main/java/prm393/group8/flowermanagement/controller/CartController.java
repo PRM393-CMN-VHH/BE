@@ -6,6 +6,7 @@ import prm393.group8.flowermanagement.entity.OrderDetail;
 import prm393.group8.flowermanagement.entity.Product;
 import prm393.group8.flowermanagement.entity.User;
 import prm393.group8.flowermanagement.service.CartService;
+import prm393.group8.flowermanagement.service.NotificationService;
 import prm393.group8.flowermanagement.service.OrderDetailService;
 import prm393.group8.flowermanagement.service.OrderService;
 import prm393.group8.flowermanagement.service.ProductService;
@@ -26,15 +27,18 @@ public class CartController {
     private final OrderService orderService;
     private final OrderDetailService orderDetailService;
     private final CartService cartService;
+    private final NotificationService notificationService;
 
     public CartController(ProductService productService,
                           OrderService orderService,
                           OrderDetailService orderDetailService,
-                          CartService cartService) {
+                          CartService cartService,
+                          NotificationService notificationService) {
         this.productService = productService;
         this.orderService = orderService;
         this.orderDetailService = orderDetailService;
         this.cartService = cartService;
+        this.notificationService = notificationService;
     }
 
     // 1. [GET] /cart - Xem giỏ hàng
@@ -287,15 +291,22 @@ public class CartController {
 
         Order savedOrder = orderService.createOrder(order);
 
-        // Tạo OrderDetails
+        // Tạo OrderDetails (giá theo khuyến mãi nếu có)
         for (CartItem item : cart) {
+            Product product = item.getProduct();
             OrderDetail orderDetail = new OrderDetail();
             orderDetail.setOrder(savedOrder);
-            orderDetail.setProduct(item.getProduct());
+            orderDetail.setProduct(product);
             orderDetail.setQuantity(item.getQuantity());
-            orderDetail.setPrice(item.getProduct().getPrice());
+            orderDetail.setPrice(product.getPromoPrice() != null ? product.getPromoPrice() : product.getPrice());
             orderDetailService.saveOrderDetail(orderDetail);
         }
+
+        notificationService.notify(
+                account,
+                "Đặt hàng thành công",
+                "Đơn hàng #" + savedOrder.getOrderId() + " đã được tạo với tổng tiền "
+                        + String.format("%,.0f", totalPrice) + " đ. Chúng tôi sẽ sớm xác nhận đơn của bạn.");
 
         // Xóa giỏ hàng khỏi DB (Chỉ xóa ngay nếu không phải thanh toán VNPay)
         if (!"VNPay".equalsIgnoreCase(paymentMethod)) {

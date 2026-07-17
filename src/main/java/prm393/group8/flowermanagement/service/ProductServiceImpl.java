@@ -60,9 +60,4 @@ public class ProductServiceImpl implements ProductService {
         Pageable pageable = PageRequest.of(pageNo - 1, pageSize);
         return productRepository.findByProductNameContainingIgnoreCase(keyword, pageable);
     }
-
-    @Override
-    public List<Product> getAllProductsByCategoryIdNot(int categoryId) {
-        return productRepository.findByCategory_CategoryIdNot(categoryId);
-    }
 }

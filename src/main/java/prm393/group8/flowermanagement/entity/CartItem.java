@@ -34,6 +34,10 @@ public class CartItem {
         if (product == null) {
             return 0.0;
         }
-        return product.getPrice() * quantity;
+        // Tính theo giá khuyến mãi nếu có, khớp với cách frontend hiển thị
+        double effectivePrice = product.getPromoPrice() != null
+                ? product.getPromoPrice()
+                : product.getPrice();
+        return effectivePrice * quantity;
     }
 }

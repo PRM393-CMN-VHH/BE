@@ -15,5 +15,4 @@ public interface ProductService {
     List<Product> getProductsByCategoryId(int categoryId);
     List<Product> searchProducts(String keyword);
     Page<Product> searchPaginatedProducts(String keyword, int pageNo, int pageSize);
-    List<Product> getAllProductsByCategoryIdNot(int categoryId);
 }
