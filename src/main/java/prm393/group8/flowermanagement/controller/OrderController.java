@@ -35,22 +35,39 @@ public class OrderController {
         }
 
         List<Order> orders = orderService.getOrdersByUserId(account.getUserId());
-        return ResponseEntity.ok(orders);
+        List<Map<String, Object>> responseList = new java.util.ArrayList<>();
+        for (Order order : orders) {
+            Map<String, Object> orderMap = new HashMap<>();
+            orderMap.put("orderId", order.getOrderId());
+            orderMap.put("totalPrice", order.getTotalPrice());
+            orderMap.put("orderStatus", order.getOrderStatus());
+            orderMap.put("paymentStatus", order.getPaymentStatus());
+            orderMap.put("paymentMethod", order.getPaymentMethod());
+            orderMap.put("createdAt", order.getCreatedAt());
+            orderMap.put("user", order.getUser());
+
+            List<OrderDetail> details = orderDetailService.getOrderDetailsByOrderId(order.getOrderId());
+            orderMap.put("orderDetails", details);
+
+            responseList.add(orderMap);
+        }
+        return ResponseEntity.ok(responseList);
     }
 
     // 2. [GET] /order/detail/{id} - Chi tiết đơn hàng
     @GetMapping("/detail/{id}")
     public ResponseEntity<?> orderDetail(@PathVariable("id") int id, HttpSession session) {
         User account = (User) session.getAttribute("account");
-        if (account == null) {
+        User adminInfo = (User) session.getAttribute("adminInfo");
+        if (account == null && adminInfo == null) {
             return ResponseEntity.status(401).body(Map.of("error", "Not logged in"));
         }
 
         Order order = orderService.getOrderById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng"));
 
-        // Kiểm tra quyền: user chỉ xem đơn của mình
-        if (order.getUser().getUserId() != account.getUserId()) {
+        // Kiểm tra quyền: user chỉ xem đơn của mình, admin được phép xem tất cả các đơn hàng
+        if (adminInfo == null && order.getUser().getUserId() != account.getUserId()) {
             return ResponseEntity.status(403).body(Map.of("error", "Forbidden"));
         }
 
