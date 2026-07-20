@@ -11,6 +11,7 @@ public interface OrderService {
     Order createOrder(Order order);
     Optional<Order> getOrderById(int id);
     List<Order> getOrdersByUserId(int userId);
+    List<Order> getOrdersByUserIdAndStatus(int userId, String status);
 
     List<Order> getAll();
     Order updateOrderStatus(int orderId, String orderStatus, String paymentStatus);

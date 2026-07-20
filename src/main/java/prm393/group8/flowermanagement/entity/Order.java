@@ -22,6 +22,12 @@ public class Order {
     @Column(name = "total_price", nullable = false)
     private double totalPrice;
 
+    // columnDefinition default backfills existing rows when Hibernate ALTERs
+    // this column in (they'd otherwise violate NOT NULL with no psql on hand
+    // to backfill manually).
+    @Column(name = "shipping_fee", nullable = false, columnDefinition = "double precision default 0")
+    private double shippingFee;
+
     @Column(name = "order_status", length = 20, nullable = false)
     private String orderStatus;
 

@@ -32,6 +32,11 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
+        // Categories used to be flower types (Hoa Hồng, Hoa Lan, ...); this app now
+        // browses by gift occasion instead (Sinh nhật, Tỏ tình, ...). Runs on every
+        // startup but is a no-op once already migrated, so it's safe on old DBs.
+        migrateFlowerTypeCategoriesToOccasions();
+
         // Store locations được seed riêng để DB cũ (đã có roles) vẫn nhận được dữ liệu cửa hàng
         if (storeLocationRepository.count() == 0) {
             storeLocationRepository.saveAll(List.of(
@@ -80,14 +85,19 @@ public class DataInitializer implements CommandLineRunner {
         normalUser.setStatus(true);
         userRepository.save(normalUser);
 
-        // 3. Categories
-        Category rose = new Category("Hoa Hồng");
-        Category orchid = new Category("Hoa Lan");
-        Category lily = new Category("Hoa Ly");
-        Category tulip = new Category("Hoa Tulip");
-        Category sunflower = new Category("Hoa Hướng Dương");
+        // 3. Categories — browse by gift occasion, not flower type
+        Category tinhYeu = new Category("Tỏ tình");
+        Category sinhNhat = new Category("Sinh nhật");
+        Category chucMung = new Category("Chúc mừng");
+        Category khaiTruong = new Category("Khai trương");
+        Category kyNiem = new Category("Kỷ niệm");
+        Category totNghiep = new Category("Tốt nghiệp");
+        Category triAn = new Category("Tri ân");
+        Category ngayLe = new Category("Ngày lễ");
 
-        categoryRepository.saveAll(List.of(rose, orchid, lily, tulip, sunflower));
+        categoryRepository.saveAll(List.of(
+                tinhYeu, sinhNhat, chucMung, khaiTruong, kyNiem, totNghiep, triAn, ngayLe
+        ));
 
         // 4. Products (All products are bouquets)
         Product roseRed = new Product(
@@ -110,7 +120,7 @@ public class DataInitializer implements CommandLineRunner {
                 320000,
                 30,
                 "https://7fgarden.com/wp-content/uploads/2024/05/bo-hoa-hong-ecuador.webp",
-                rose
+                tinhYeu
         );
 
         Product roseEcuador = new Product(
@@ -133,7 +143,7 @@ public class DataInitializer implements CommandLineRunner {
                 650000,
                 20,
                 "https://lamantfloral.com/wp-content/uploads/2024/09/z5841224342864_67e1d9e1bcd573c149874d57a9e222e5.jpg",
-                rose
+                sinhNhat
         );
 
         Product orchidWhite = new Product(
@@ -156,7 +166,7 @@ public class DataInitializer implements CommandLineRunner {
                 480000,
                 18,
                 "https://hoathangtu.com/wp-content/uploads/2024/10/IMG_1033.jpg",
-                orchid
+                chucMung
         );
 
         Product lilyYellow = new Product(
@@ -179,7 +189,7 @@ public class DataInitializer implements CommandLineRunner {
                 390000,
                 24,
                 "https://hoatuoingocvan.com/storage/products/kBnGBXx49tRet8dPlTr4s8W4nxutPr52qUxl4Wry.jpg",
-                lily
+                khaiTruong
         );
 
         Product tulipRed = new Product(
@@ -202,7 +212,7 @@ public class DataInitializer implements CommandLineRunner {
                 720000,
                 16,
                 "https://vuonhoatuoi.vn/wp-content/uploads/2026/04/bo-hoa-tulip-do-5.webp",
-                tulip
+                kyNiem
         );
 
         Product sunflowerSingle = new Product(
@@ -225,7 +235,7 @@ public class DataInitializer implements CommandLineRunner {
                 280000,
                 35,
                 "https://img.mayflower.vn/2019/08/bo-hoa-huong-duong.jpg",
-                sunflower
+                totNghiep
         );
 
         // Giá khuyến mãi cho một vài sản phẩm (hiển thị "giá khuyến mãi nếu có")
@@ -237,6 +247,55 @@ public class DataInitializer implements CommandLineRunner {
         ));
 
         System.out.println("Flower Shop database initialized successfully!");
+    }
+
+    // One-time migration for pre-existing databases: categories were flower types
+    // (Hoa Hồng, Hoa Lan, Hoa Ly, Hoa Tulip, Hoa Hướng Dương); rename them in place
+    // to gift occasions, add the remaining occasion categories, and move products
+    // that shared a flower-type category into their own distinct occasion.
+    private void migrateFlowerTypeCategoriesToOccasions() {
+        boolean alreadyMigrated = categoryRepository.findAll().stream()
+                .anyMatch(c -> "Sinh nhật".equals(c.getCategoryName()));
+        if (alreadyMigrated) return;
+
+        var byOldName = categoryRepository.findAll().stream()
+                .collect(java.util.stream.Collectors.toMap(Category::getCategoryName, c -> c));
+
+        Category rose = byOldName.get("Hoa Hồng");
+        Category orchid = byOldName.get("Hoa Lan");
+        Category lily = byOldName.get("Hoa Ly");
+        Category tulip = byOldName.get("Hoa Tulip");
+        Category sunflower = byOldName.get("Hoa Hướng Dương");
+        if (rose == null || orchid == null || lily == null || tulip == null || sunflower == null) {
+            // Not the flower-type schema we expect (e.g. a fresh DB already using
+            // occasion categories, or categories were customized) — leave it alone.
+            return;
+        }
+
+        System.out.println("Migrating categories from flower type to gift occasion...");
+
+        rose.setCategoryName("Tỏ tình");
+        orchid.setCategoryName("Chúc mừng");
+        lily.setCategoryName("Khai trương");
+        tulip.setCategoryName("Kỷ niệm");
+        sunflower.setCategoryName("Tốt nghiệp");
+        categoryRepository.saveAll(List.of(rose, orchid, lily, tulip, sunflower));
+
+        Category sinhNhat = categoryRepository.save(new Category("Sinh nhật"));
+        categoryRepository.save(new Category("Tri ân"));
+        categoryRepository.save(new Category("Ngày lễ"));
+
+        // "Hoa Hồng" used to cover two products; keep one under its new "Tỏ tình"
+        // category and move the other to "Sinh nhật" so they aren't identical tags.
+        productRepository.findAll().stream()
+                .filter(p -> "Bó Hồng Ecuador Dịu Dàng".equals(p.getProductName()))
+                .findFirst()
+                .ifPresent(p -> {
+                    p.setCategory(sinhNhat);
+                    productRepository.save(p);
+                });
+
+        System.out.println("Category migration done.");
     }
 
     private static String productDescription(

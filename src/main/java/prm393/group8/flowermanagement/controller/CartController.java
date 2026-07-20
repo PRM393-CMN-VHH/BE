@@ -23,6 +23,14 @@ import java.util.Map;
 @RequestMapping("/cart")
 public class CartController {
 
+    // Flat shipping fee, waived for orders at/above the free-shipping threshold.
+    private static final double SHIPPING_FEE = 30_000;
+    private static final double FREE_SHIPPING_THRESHOLD = 500_000;
+
+    private static double shippingFeeFor(double subtotal) {
+        return subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
+    }
+
     private final ProductService productService;
     private final OrderService orderService;
     private final OrderDetailService orderDetailService;
@@ -241,13 +249,16 @@ public class CartController {
             return ResponseEntity.badRequest().body(Map.of("error", "Giỏ hàng trống", "redirect", "/cart"));
         }
 
-        double total = cart.stream()
+        double subtotal = cart.stream()
                 .mapToDouble(CartItem::getSubtotal)
                 .sum();
+        double shippingFee = shippingFeeFor(subtotal);
 
         Map<String, Object> response = new HashMap<>();
         response.put("cart", cart);
-        response.put("total", total);
+        response.put("subtotal", subtotal);
+        response.put("shippingFee", shippingFee);
+        response.put("total", subtotal + shippingFee);
         response.put("account", account);
         return ResponseEntity.ok(response);
     }
@@ -276,15 +287,18 @@ public class CartController {
             return ResponseEntity.badRequest().body(Map.of("error", "Giỏ hàng trống", "redirect", "/cart"));
         }
 
-        // Tính tổng tiền
-        double totalPrice = cart.stream()
+        // Tính tổng tiền (tạm tính + phí giao hàng)
+        double subtotal = cart.stream()
                 .mapToDouble(CartItem::getSubtotal)
                 .sum();
+        double shippingFee = shippingFeeFor(subtotal);
+        double totalPrice = subtotal + shippingFee;
 
         // Tạo Order
         Order order = new Order();
         order.setUser(account);
         order.setTotalPrice(totalPrice);
+        order.setShippingFee(shippingFee);
         order.setPaymentMethod(paymentMethod);
         order.setOrderStatus("Pending");
         order.setPaymentStatus("Unpaid");

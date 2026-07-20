@@ -12,6 +12,7 @@ import java.util.List;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Integer> {
     List<Order> findByUser_UserId(int userId);
+    List<Order> findByUser_UserIdAndOrderStatusIgnoreCase(int userId, String status);
     List<Order> findByUserEmailContainingIgnoreCase(String email);
     Page<Order> findByUserEmailContainingIgnoreCase(String email, Pageable pageable);
     List<Order> findByOrderStatus(String status);

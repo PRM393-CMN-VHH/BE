@@ -51,6 +51,11 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    public List<Order> getOrdersByUserIdAndStatus(int userId, String status) {
+        return orderRepository.findByUser_UserIdAndOrderStatusIgnoreCase(userId, status);
+    }
+
+    @Override
     public List<Order> getAll() {
         return orderRepository.findAll();
     }

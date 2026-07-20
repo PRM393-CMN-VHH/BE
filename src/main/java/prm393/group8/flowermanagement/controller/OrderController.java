@@ -26,20 +26,25 @@ public class OrderController {
         this.orderDetailService = orderDetailService;
     }
 
-    // 1. [GET] /order/my-orders - Danh sách đơn hàng của user
+    // 1. [GET] /order/my-orders - Danh sách đơn hàng của user, lọc theo trạng thái nếu có ?status=
     @GetMapping("/my-orders")
-    public ResponseEntity<?> myOrders(HttpSession session) {
+    public ResponseEntity<?> myOrders(
+            @RequestParam(value = "status", required = false) String status,
+            HttpSession session) {
         User account = (User) session.getAttribute("account");
         if (account == null) {
             return ResponseEntity.status(401).body(Map.of("error", "Not logged in"));
         }
 
-        List<Order> orders = orderService.getOrdersByUserId(account.getUserId());
+        List<Order> orders = (status == null || status.isBlank())
+                ? orderService.getOrdersByUserId(account.getUserId())
+                : orderService.getOrdersByUserIdAndStatus(account.getUserId(), status);
         List<Map<String, Object>> responseList = new java.util.ArrayList<>();
         for (Order order : orders) {
             Map<String, Object> orderMap = new HashMap<>();
             orderMap.put("orderId", order.getOrderId());
             orderMap.put("totalPrice", order.getTotalPrice());
+            orderMap.put("shippingFee", order.getShippingFee());
             orderMap.put("orderStatus", order.getOrderStatus());
             orderMap.put("paymentStatus", order.getPaymentStatus());
             orderMap.put("paymentMethod", order.getPaymentMethod());
@@ -128,5 +133,28 @@ public class OrderController {
 
         orderService.updateOrderStatus(order.getOrderId(), "CANCELLED", "Cancelled");
         return ResponseEntity.ok(Map.of("message", "Đã hủy giao dịch của đơn hàng #" + order.getOrderId(), "status", "CANCELLED"));
+    }
+
+    // 5. [POST] /order/confirm-received/{id} - Khách tự xác nhận đã nhận hàng (mở khóa đánh giá sản phẩm)
+    @PostMapping("/confirm-received/{id}")
+    public ResponseEntity<?> confirmReceived(@PathVariable("id") int id, HttpSession session) {
+        User account = (User) session.getAttribute("account");
+        if (account == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Not logged in"));
+        }
+
+        Order order = orderService.getOrderById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng"));
+
+        if (order.getUser().getUserId() != account.getUserId()) {
+            return ResponseEntity.status(403).body(Map.of("error", "Forbidden"));
+        }
+
+        if (!"DELIVERED".equalsIgnoreCase(order.getOrderStatus())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Chỉ có thể xác nhận khi đơn hàng đã được giao."));
+        }
+
+        Order updated = orderService.updateOrderStatus(order.getOrderId(), "COMPLETED", order.getPaymentStatus());
+        return ResponseEntity.ok(Map.of("message", "Đã xác nhận nhận hàng", "order", updated));
     }
 }
