@@ -2,6 +2,7 @@ package prm393.group8.flowermanagement.controller;
 
 import prm393.group8.flowermanagement.entity.*;
 import prm393.group8.flowermanagement.service.*;
+import prm393.group8.flowermanagement.websocket.OrderWebSocketHandler;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -30,6 +31,7 @@ public class AdminController {
     private final OrderDetailService orderDetailService;
     private final RoleService roleService;
     private final NotificationService notificationService;
+    private final OrderWebSocketHandler orderWebSocketHandler;
 
     public AdminController(ProductService productService,
                            UserService userService,
@@ -37,7 +39,8 @@ public class AdminController {
                            CategoryService categoryService,
                            OrderDetailService orderDetailService,
                            RoleService roleService,
-                           NotificationService notificationService) {
+                           NotificationService notificationService,
+                           OrderWebSocketHandler orderWebSocketHandler) {
         this.productService = productService;
         this.userService = userService;
         this.orderService = orderService;
@@ -45,6 +48,7 @@ public class AdminController {
         this.orderDetailService = orderDetailService;
         this.roleService = roleService;
         this.notificationService = notificationService;
+        this.orderWebSocketHandler = orderWebSocketHandler;
     }
 
     // ================= Login page =================
@@ -123,6 +127,7 @@ public class AdminController {
             HttpSession session,
             @RequestParam(value = "email", required = false) String email,
             @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "paymentStatus", required = false) String paymentStatus,
             @RequestParam(value = "startDate", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(value = "endDate", required = false)
@@ -138,7 +143,7 @@ public class AdminController {
         if (endDate != null && startDate == null) startDate = endDate;
 
         int pageSize = 10;
-        Page<Order> page = orderService.filterOrdersPaginated(email, status, startDate, endDate, pageNo, pageSize);
+        Page<Order> page = orderService.filterOrdersPaginated(email, status, paymentStatus, startDate, endDate, pageNo, pageSize);
 
         Map<String, Object> response = new HashMap<>();
         response.put("orders", page.getContent());
@@ -146,6 +151,7 @@ public class AdminController {
         response.put("totalPage", page.getTotalPages());
         response.put("email", email);
         response.put("status", status);
+        response.put("paymentStatus", paymentStatus);
         response.put("startDate", startDate);
         response.put("endDate", endDate);
         response.put("statuses", List.of("PENDING", "CONFIRMED", "SHIPPED", "DELIVERED", "CANCELLED"));
@@ -181,15 +187,22 @@ public class AdminController {
 
         orderService.updateOrderStatusById(orderId, status);
 
-        // Gửi thông báo cập nhật trạng thái cho khách hàng của đơn
+        // Gửi thông báo cập nhật trạng thái cho khách hàng của đơn, đẩy realtime cho
+        // cả khách (đổi tab/màn hình ngay) lẫn các admin khác đang xem danh sách.
         orderService.getOrderById(orderId).ifPresent(order -> {
             if (order.getUser() != null) {
                 notificationService.notify(
                         order.getUser(),
                         "Cập nhật đơn hàng #" + orderId,
-                        statusMessage(orderId, status));
+                        statusMessage(orderId, status),
+                        orderId);
+                orderWebSocketHandler.pushToUser(order.getUser().getUserId(), "order_status_changed", Map.of(
+                        "orderId", orderId,
+                        "status", status
+                ));
             }
         });
+        orderWebSocketHandler.pushToAdmins("order_updated", Map.of("orderId", orderId, "status", status));
 
         // Trả lại số lượng tồn kho của từng sản phẩm sau khi hủy đơn hàng
         if ("CANCELLED".equalsIgnoreCase(status)) {

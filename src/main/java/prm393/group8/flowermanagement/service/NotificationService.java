@@ -11,6 +11,11 @@ public interface NotificationService {
 
     AppNotification notify(User user, String title, String content);
 
+    AppNotification notify(User user, String title, String content, Integer orderId);
+
+    // Notifies every admin account (e.g. new order placed, customer confirmed receipt).
+    void notifyAdmins(String title, String content, Integer orderId);
+
     void markAsRead(int notificationId, int userId);
 
     void markAllAsRead(int userId);

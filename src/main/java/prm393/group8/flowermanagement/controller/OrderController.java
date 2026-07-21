@@ -3,8 +3,10 @@ package prm393.group8.flowermanagement.controller;
 import prm393.group8.flowermanagement.entity.Order;
 import prm393.group8.flowermanagement.entity.OrderDetail;
 import prm393.group8.flowermanagement.entity.User;
+import prm393.group8.flowermanagement.service.NotificationService;
 import prm393.group8.flowermanagement.service.OrderDetailService;
 import prm393.group8.flowermanagement.service.OrderService;
+import prm393.group8.flowermanagement.websocket.OrderWebSocketHandler;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,13 +22,20 @@ public class OrderController {
 
     private final OrderService orderService;
     private final OrderDetailService orderDetailService;
+    private final OrderWebSocketHandler orderWebSocketHandler;
+    private final NotificationService notificationService;
 
-    public OrderController(OrderService orderService, OrderDetailService orderDetailService) {
+    public OrderController(OrderService orderService, OrderDetailService orderDetailService,
+                            OrderWebSocketHandler orderWebSocketHandler,
+                            NotificationService notificationService) {
         this.orderService = orderService;
         this.orderDetailService = orderDetailService;
+        this.orderWebSocketHandler = orderWebSocketHandler;
+        this.notificationService = notificationService;
     }
 
-    // 1. [GET] /order/my-orders - Danh sách đơn hàng của user, lọc theo trạng thái nếu có ?status=
+    // 1. [GET] /order/my-orders - Danh sách đơn hàng của user, lọc theo trạng thái nếu có
+    // ?status=. Hỗ trợ nhiều trạng thái cùng lúc bằng dấu phẩy, ví dụ status=DELIVERED,COMPLETED.
     @GetMapping("/my-orders")
     public ResponseEntity<?> myOrders(
             @RequestParam(value = "status", required = false) String status,
@@ -36,9 +45,18 @@ public class OrderController {
             return ResponseEntity.status(401).body(Map.of("error", "Not logged in"));
         }
 
-        List<Order> orders = (status == null || status.isBlank())
-                ? orderService.getOrdersByUserId(account.getUserId())
-                : orderService.getOrdersByUserIdAndStatus(account.getUserId(), status);
+        List<Order> orders;
+        if (status == null || status.isBlank()) {
+            orders = orderService.getOrdersByUserId(account.getUserId());
+        } else {
+            List<String> statuses = java.util.Arrays.stream(status.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
+            orders = statuses.size() == 1
+                    ? orderService.getOrdersByUserIdAndStatus(account.getUserId(), statuses.get(0))
+                    : orderService.getOrdersByUserIdAndStatuses(account.getUserId(), statuses);
+        }
         List<Map<String, Object>> responseList = new java.util.ArrayList<>();
         for (Order order : orders) {
             Map<String, Object> orderMap = new HashMap<>();
@@ -132,6 +150,7 @@ public class OrderController {
         }
 
         orderService.updateOrderStatus(order.getOrderId(), "CANCELLED", "Cancelled");
+        orderWebSocketHandler.pushToAdmins("order_updated", Map.of("orderId", order.getOrderId(), "status", "CANCELLED"));
         return ResponseEntity.ok(Map.of("message", "Đã hủy giao dịch của đơn hàng #" + order.getOrderId(), "status", "CANCELLED"));
     }
 
@@ -155,6 +174,12 @@ public class OrderController {
         }
 
         Order updated = orderService.updateOrderStatus(order.getOrderId(), "COMPLETED", order.getPaymentStatus());
+        orderWebSocketHandler.pushToAdmins("order_updated", Map.of("orderId", order.getOrderId(), "status", "COMPLETED"));
+        notificationService.notifyAdmins(
+                "Khách đã nhận hàng #" + order.getOrderId(),
+                account.getFullName() + " (" + account.getEmail() + ") đã xác nhận nhận hàng cho đơn #"
+                        + order.getOrderId() + ".",
+                order.getOrderId());
         return ResponseEntity.ok(Map.of("message", "Đã xác nhận nhận hàng", "order", updated));
     }
 }

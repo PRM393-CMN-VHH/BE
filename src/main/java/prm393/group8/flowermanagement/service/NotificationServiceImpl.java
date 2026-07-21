@@ -5,16 +5,26 @@ import org.springframework.transaction.annotation.Transactional;
 import prm393.group8.flowermanagement.entity.AppNotification;
 import prm393.group8.flowermanagement.entity.User;
 import prm393.group8.flowermanagement.repository.AppNotificationRepository;
+import prm393.group8.flowermanagement.repository.UserRepository;
+import prm393.group8.flowermanagement.websocket.OrderWebSocketHandler;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class NotificationServiceImpl implements NotificationService {
 
     private final AppNotificationRepository notificationRepository;
+    private final OrderWebSocketHandler orderWebSocketHandler;
+    private final UserRepository userRepository;
 
-    public NotificationServiceImpl(AppNotificationRepository notificationRepository) {
+    public NotificationServiceImpl(AppNotificationRepository notificationRepository,
+                                    OrderWebSocketHandler orderWebSocketHandler,
+                                    UserRepository userRepository) {
         this.notificationRepository = notificationRepository;
+        this.orderWebSocketHandler = orderWebSocketHandler;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -24,7 +34,29 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public AppNotification notify(User user, String title, String content) {
-        return notificationRepository.save(new AppNotification(user, title, content));
+        return notify(user, title, content, null);
+    }
+
+    @Override
+    public AppNotification notify(User user, String title, String content, Integer orderId) {
+        AppNotification saved = notificationRepository.save(new AppNotification(user, title, content, orderId));
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("notificationId", saved.getNotificationId());
+        payload.put("title", saved.getTitle());
+        payload.put("content", saved.getContent());
+        payload.put("createdAt", saved.getCreatedAt().toString());
+        payload.put("read", saved.isRead());
+        payload.put("orderId", saved.getOrderId());
+        orderWebSocketHandler.pushToUser(user.getUserId(), "notification", payload);
+        return saved;
+    }
+
+    @Override
+    public void notifyAdmins(String title, String content, Integer orderId) {
+        List<User> admins = userRepository.findByRole_RoleNameIgnoreCase("admin");
+        for (User admin : admins) {
+            notify(admin, title, content, orderId);
+        }
     }
 
     @Override

@@ -2,6 +2,7 @@ package prm393.group8.flowermanagement.controller;
 
 import prm393.group8.flowermanagement.entity.*;
 import prm393.group8.flowermanagement.service.*;
+import prm393.group8.flowermanagement.websocket.OrderWebSocketHandler;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
@@ -24,19 +25,22 @@ public class PaymentController {
     private final ProductService productService;
     private final CartService cartService;
     private final NotificationService notificationService;
+    private final OrderWebSocketHandler orderWebSocketHandler;
 
     public PaymentController(PaymentService paymentService,
                              OrderService orderService,
                              OrderDetailService orderDetailService,
                              ProductService productService,
                              CartService cartService,
-                             NotificationService notificationService) {
+                             NotificationService notificationService,
+                             OrderWebSocketHandler orderWebSocketHandler) {
         this.paymentService = paymentService;
         this.orderService = orderService;
         this.orderDetailService = orderDetailService;
         this.productService = productService;
         this.cartService = cartService;
         this.notificationService = notificationService;
+        this.orderWebSocketHandler = orderWebSocketHandler;
     }
 
     // 1. [GET/POST] /payment/create -> Trả về JSON chứa URL thanh toán
@@ -93,8 +97,17 @@ public class PaymentController {
                                 user,
                                 "Thanh toán thành công",
                                 "Giao dịch VNPay cho đơn hàng #" + orderId
-                                        + " đã hoàn tất. Đơn hàng đang chờ cửa hàng xác nhận.");
+                                        + " đã hoàn tất. Đơn hàng đang chờ cửa hàng xác nhận.",
+                                orderId);
+                        orderWebSocketHandler.pushToUser(user.getUserId(), "order_status_changed", Map.of(
+                                "orderId", orderId,
+                                "paymentStatus", "Paid"
+                        ));
                     }
+                    orderWebSocketHandler.pushToAdmins("order_updated", Map.of(
+                            "orderId", orderId,
+                            "paymentStatus", "Paid"
+                    ));
 
                     // Cập nhật transaction history trong session
                     updateTransactionInHistory(session, orderId, "CONFIRMED", "Paid");

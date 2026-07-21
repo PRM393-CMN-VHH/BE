@@ -10,6 +10,7 @@ import prm393.group8.flowermanagement.service.NotificationService;
 import prm393.group8.flowermanagement.service.OrderDetailService;
 import prm393.group8.flowermanagement.service.OrderService;
 import prm393.group8.flowermanagement.service.ProductService;
+import prm393.group8.flowermanagement.websocket.OrderWebSocketHandler;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -36,17 +37,20 @@ public class CartController {
     private final OrderDetailService orderDetailService;
     private final CartService cartService;
     private final NotificationService notificationService;
+    private final OrderWebSocketHandler orderWebSocketHandler;
 
     public CartController(ProductService productService,
                           OrderService orderService,
                           OrderDetailService orderDetailService,
                           CartService cartService,
-                          NotificationService notificationService) {
+                          NotificationService notificationService,
+                          OrderWebSocketHandler orderWebSocketHandler) {
         this.productService = productService;
         this.orderService = orderService;
         this.orderDetailService = orderDetailService;
         this.cartService = cartService;
         this.notificationService = notificationService;
+        this.orderWebSocketHandler = orderWebSocketHandler;
     }
 
     // 1. [GET] /cart - Xem giỏ hàng
@@ -320,7 +324,27 @@ public class CartController {
                 account,
                 "Đặt hàng thành công",
                 "Đơn hàng #" + savedOrder.getOrderId() + " đã được tạo với tổng tiền "
-                        + String.format("%,.0f", totalPrice) + " đ. Chúng tôi sẽ sớm xác nhận đơn của bạn.");
+                        + String.format("%,.0f", totalPrice) + " đ. Chúng tôi sẽ sớm xác nhận đơn của bạn.",
+                savedOrder.getOrderId());
+
+        // Lưu thông báo cho admin (khác với push realtime bên dưới — cái này còn lại
+        // trong lịch sử thông báo kể cả khi admin không online lúc đặt hàng).
+        notificationService.notifyAdmins(
+                "Đơn hàng mới #" + savedOrder.getOrderId(),
+                account.getFullName() + " (" + account.getEmail() + ") vừa đặt đơn hàng #"
+                        + savedOrder.getOrderId() + " trị giá " + String.format("%,.0f", totalPrice) + " đ.",
+                savedOrder.getOrderId());
+
+        // Báo cho tất cả admin đang online có đơn mới, kèm đủ thông tin để hiện ngay không cần load lại.
+        Map<String, Object> newOrderPayload = new HashMap<>();
+        newOrderPayload.put("orderId", savedOrder.getOrderId());
+        newOrderPayload.put("customerName", account.getFullName());
+        newOrderPayload.put("customerEmail", account.getEmail());
+        newOrderPayload.put("totalPrice", totalPrice);
+        newOrderPayload.put("paymentMethod", paymentMethod);
+        newOrderPayload.put("orderStatus", savedOrder.getOrderStatus());
+        newOrderPayload.put("createdAt", savedOrder.getCreatedAt() == null ? null : savedOrder.getCreatedAt().toString());
+        orderWebSocketHandler.pushToAdmins("new_order", newOrderPayload);
 
         // Xóa giỏ hàng khỏi DB (Chỉ xóa ngay nếu không phải thanh toán VNPay)
         if (!"VNPay".equalsIgnoreCase(paymentMethod)) {

@@ -12,6 +12,7 @@ public interface OrderService {
     Optional<Order> getOrderById(int id);
     List<Order> getOrdersByUserId(int userId);
     List<Order> getOrdersByUserIdAndStatus(int userId, String status);
+    List<Order> getOrdersByUserIdAndStatuses(int userId, List<String> statuses);
 
     List<Order> getAll();
     Order updateOrderStatus(int orderId, String orderStatus, String paymentStatus);
@@ -22,6 +23,6 @@ public interface OrderService {
     Page<Order> getPaginatedOrders(int pageNo, int pageSize);
     // Tìm kiếm theo email + phân trang
     Page<Order> searchPaginatedOrdersByEmail(String email, int pageNo, int pageSize);
-    public Page<Order> filterOrdersPaginated(String email, String status, LocalDate startDate, LocalDate endDate, int pageNo, int pageSize);
+    public Page<Order> filterOrdersPaginated(String email, String status, String paymentStatus, LocalDate startDate, LocalDate endDate, int pageNo, int pageSize);
 
 }

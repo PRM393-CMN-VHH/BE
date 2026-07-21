@@ -56,6 +56,14 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    public List<Order> getOrdersByUserIdAndStatuses(int userId, List<String> statuses) {
+        var wanted = statuses.stream().map(String::toUpperCase).collect(Collectors.toSet());
+        return getOrdersByUserId(userId).stream()
+                .filter(o -> wanted.contains(o.getOrderStatus().toUpperCase()))
+                .toList();
+    }
+
+    @Override
     public List<Order> getAll() {
         return orderRepository.findAll();
     }
@@ -107,7 +115,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public Page<Order> filterOrdersPaginated(String email, String status, LocalDate startDate, LocalDate endDate, int pageNo, int pageSize) {
+    public Page<Order> filterOrdersPaginated(String email, String status, String paymentStatus, LocalDate startDate, LocalDate endDate, int pageNo, int pageSize) {
         List<Order> orders = orderRepository.findAll();
 
         // Lọc theo email
@@ -121,6 +129,13 @@ public class OrderServiceImpl implements OrderService {
         if (status != null && !status.isBlank()) {
             orders = orders.stream()
                     .filter(o -> o.getOrderStatus().equalsIgnoreCase(status))
+                    .toList();
+        }
+
+        // Lọc theo trạng thái thanh toán
+        if (paymentStatus != null && !paymentStatus.isBlank()) {
+            orders = orders.stream()
+                    .filter(o -> o.getPaymentStatus().equalsIgnoreCase(paymentStatus))
                     .toList();
         }
 

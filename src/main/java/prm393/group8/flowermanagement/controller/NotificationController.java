@@ -57,13 +57,14 @@ public class NotificationController {
 
     // Không trả entity trực tiếp để tránh lộ thông tin User (password...) qua JSON.
     private Map<String, Object> toDto(AppNotification notification) {
-        return Map.of(
-                "notificationId", notification.getNotificationId(),
-                "title", notification.getTitle(),
-                "content", notification.getContent(),
-                "createdAt", notification.getCreatedAt().toString(),
-                "read", notification.isRead()
-        );
+        Map<String, Object> dto = new java.util.HashMap<>();
+        dto.put("notificationId", notification.getNotificationId());
+        dto.put("title", notification.getTitle());
+        dto.put("content", notification.getContent());
+        dto.put("createdAt", notification.getCreatedAt().toString());
+        dto.put("read", notification.isRead());
+        dto.put("orderId", notification.getOrderId());
+        return dto;
     }
 
     private User currentUser(HttpSession session) {
