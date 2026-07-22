@@ -7,6 +7,7 @@ import java.util.List;
 
 public interface UserService {
     User getByPhoneNumber(String phoneNumber);
+    User getByEmail(String email);
     void addUser(User user);
     User getUserByEmailAndPassword(String email, String password);
     void updateProfile(User user);

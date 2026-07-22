@@ -43,7 +43,16 @@ public class UserController {
         if (email == null || email.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Email is required"));
         }
-        
+
+        if (userService.getByEmail(email) != null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Email đã được sử dụng"));
+        }
+
+        String phoneNumber = request.get("phoneNumber");
+        if (phoneNumber != null && !phoneNumber.isEmpty() && userService.getByPhoneNumber(phoneNumber) != null) {
+            return ResponseEntity.badRequest().body(Map.of("phoneNumberExist", "Phone number is already in use"));
+        }
+
         String otp = otpService.generateOtp();
         otpService.saveOtpToRedis(email, otp);
         otpService.sendOtpEmail(email, otp);
@@ -70,6 +79,10 @@ public class UserController {
 
         if (userService.getByPhoneNumber(user.getPhoneNumber()) != null) {
             return ResponseEntity.badRequest().body(Map.of("phoneNumberExist", "Phone number is already in use"));
+        }
+
+        if (userService.getByEmail(user.getEmail()) != null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Email đã được sử dụng"));
         }
 
         if (otp == null || otp.isEmpty() || !otpService.verifyOtp(user.getEmail(), otp)) {
